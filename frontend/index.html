@@ -11,8 +11,6 @@
     .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
     .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; max-width: 900px; }
     .card h2 { font-size: 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-    .step-num { background: #0070f3; color: #fff; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; flex-shrink: 0; }
-    .step-num.done { background: #22c55e; }
     .stats { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
     .stat-card { background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 6px; padding: 0.6rem 1rem; min-width: 120px; text-align: center; }
     .stat-card .val { font-size: 1.3rem; font-weight: 700; color: #0070f3; }
@@ -20,36 +18,52 @@
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
     th { text-align: left; padding: 0.4rem 0.6rem; background: #f0f0f0; border-bottom: 2px solid #ddd; }
     td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
-    .total-row td { font-weight: 700; background: #f8f8f8; }
     .status-badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
     .status-done { background: #22c55e; color: #fff; }
-    .status-pending { background: #f59e0b; color: #fff; }
     .scope-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; margin: 0.5rem 0; }
-    .scope1 { background: #ef4444; }
-    .scope2 { background: #f59e0b; }
-    .scope3 { background: #3b82f6; }
-    .scope-legend { display: flex; gap: 1rem; font-size: 0.75rem; margin-top: 0.5rem; }
+    .scope1 { background: #ef4444; } .scope2 { background: #f59e0b; } .scope3 { background: #3b82f6; }
+    .scope-legend { display: flex; gap: 1rem; font-size: 0.75rem; margin-top: 0.5rem; flex-wrap: wrap; }
     .scope-legend span { display: flex; align-items: center; gap: 0.25rem; }
     .scope-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .loading { color: #666; font-style: italic; }
-    .error { color: #dc2626; }
-    @media (max-width: 600px) { body { padding: 1rem; } .card { padding: 1rem; } }
+    .loading { color: #666; font-style: italic; } .error { color: #dc2626; } .success { color: #16a34a; }
+    .upload-section { margin-bottom: 1.5rem; }
+    .upload-form { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .upload-form input[type="file"] { flex: 1; min-width: 200px; }
+    .upload-form select { padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; }
+    .btn { background: #0070f3; color: #fff; border: none; border-radius: 4px; padding: 0.5rem 1.2rem; cursor: pointer; font-size: 0.9rem; }
+    .btn:hover { background: #005dd4; } .btn:disabled { background: #aaa; cursor: not-allowed; }
+    .result-box { background: #f0f9ff; border: 1px solid #7dd3fc; border-radius: 6px; padding: 1rem; margin-top: 1rem; }
   </style>
 </head>
 <body>
   <h1>🌍 CO2 Emission Calculator</h1>
-  <p class="subtitle">会計データ・売上データから排出量を算出</p>
+  <p class="subtitle">CSV アップロード → 排出量算出 → ダッシュボード</p>
 
-  <!-- Dashboard Stats -->
+  <!-- Upload Section -->
+  <div class="card">
+    <h2>📁 CSV アップロード</h2>
+    <div class="upload-section">
+      <div class="upload-form">
+        <input type="file" id="csvFile" accept=".csv">
+        <select id="fileType">
+          <option value="accounting">会計データ</option>
+          <option value="sales">売上データ</option>
+          <option value="pos">POS データ</option>
+        </select>
+        <button class="btn" onclick="uploadCSV()">アップロード</button>
+      </div>
+      <div id="uploadResult"></div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
   <div class="card" id="card-dashboard">
     <h2>📊 Dashboard</h2>
-    <div id="summaryStats" class="stats">
-      <div class="loading">データ読込中...</div>
-    </div>
+    <div id="summaryStats" class="stats"><div class="loading">データ読込中...</div></div>
     <div id="scopeBreakdown"></div>
   </div>
 
-  <!-- Recent Calculations -->
+  <!-- Calculations -->
   <div class="card" id="card-calculations">
     <h2>📋 算出履歴</h2>
     <div id="calculationsList" class="loading">データ読込中...</div>
@@ -57,103 +71,73 @@
 
   <!-- Uploads -->
   <div class="card" id="card-uploads">
-    <h2>📁 アップロード済みファイル</h2>
+    <h2>📁 アップロード履歴</h2>
     <div id="uploadsList" class="loading">データ読込中...</div>
   </div>
 
   <script>
-    const API_BASE = '';
-    
-    async function fetchJSON(url) {
-      const res = await fetch(API_BASE + url);
-      return res.json();
+    async function uploadCSV() {
+      const fileInput = document.getElementById('csvFile');
+      const fileType = document.getElementById('fileType').value;
+      const resultDiv = document.getElementById('uploadResult');
+      
+      if (!fileInput.files[0]) { resultDiv.innerHTML = '<div class="error">ファイルを選択してください</div>'; return; }
+      
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('fileType', fileType);
+      
+      resultDiv.innerHTML = '<div class="loading">アップロード中...</div>';
+      
+      try {
+        const res = await fetch('/api/v1/uploads', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.error) { resultDiv.innerHTML = '<div class="error">エラー：' + data.error + '</div>'; return; }
+        resultDiv.innerHTML = '<div class="success">✅ アップロード完了！</div>' +
+          '<div class="result-box"><strong>排出量算出結果:</strong><br>' +
+          '総排出量：<strong>' + data.emissions.total.toFixed(1) + ' kg-CO2e</strong><br>' +
+          'Scope 1: ' + data.emissions.scope1.toFixed(1) + ' kg | ' +
+          'Scope 2: ' + data.emissions.scope2.toFixed(1) + ' kg | ' +
+          'Scope 3: ' + data.emissions.scope3.toFixed(1) + ' kg</div>';
+        loadDashboard(); loadCalculations(); loadUploads();
+      } catch (e) { resultDiv.innerHTML = '<div class="error">エラー：' + e.message + '</div>'; }
     }
 
-    function formatNumber(n) {
-      return n.toLocaleString('ja-JP', { maximumFractionDigits: 1 });
-    }
-
-    function formatDate(iso) {
-      return new Date(iso).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-    }
+    async function fetchJSON(url) { try { return await (await fetch(url)).json(); } catch(e) { return null; } }
+    function fmt(n) { return n.toLocaleString('ja-JP', { maximumFractionDigits: 1 }); }
+    function fmtDate(iso) { return new Date(iso).toLocaleString('ja-JP'); }
 
     async function loadDashboard() {
-      try {
-        const summary = await fetchJSON('/api/dashboard/summary');
-        document.getElementById('summaryStats').innerHTML = `
-          <div class="stat-card"><div class="val">${formatNumber(summary.total_emissions_kg)}</div><div class="lbl">総排出量 (kg-CO2e)</div></div>
-          <div class="stat-card"><div class="val">${formatNumber(summary.scope1_kg)}</div><div class="lbl">Scope 1</div></div>
-          <div class="stat-card"><div class="val">${formatNumber(summary.scope2_kg)}</div><div class="lbl">Scope 2</div></div>
-          <div class="stat-card"><div class="val">${formatNumber(summary.scope3_kg)}</div><div class="lbl">Scope 3</div></div>
-          <div class="stat-card"><div class="val">${summary.total_calculations}</div><div class="lbl">算出回数</div></div>
-        `;
-        
-        const total = summary.total_emissions_kg;
-        const s1p = ((summary.scope1_kg / total) * 100).toFixed(1);
-        const s2p = ((summary.scope2_kg / total) * 100).toFixed(1);
-        const s3p = ((summary.scope3_kg / total) * 100).toFixed(1);
-        
-        document.getElementById('scopeBreakdown').innerHTML = `
-          <div class="scope-bar">
-            <div class="scope1" style="width:${s1p}%"></div>
-            <div class="scope2" style="width:${s2p}%"></div>
-            <div class="scope3" style="width:${s3p}%"></div>
-          </div>
-          <div class="scope-legend">
-            <span><div class="scope-dot scope1"></div>Scope 1: ${formatNumber(summary.scope1_kg)}kg (${s1p}%)</span>
-            <span><div class="scope-dot scope2"></div>Scope 2: ${formatNumber(summary.scope2_kg)}kg (${s2p}%)</span>
-            <span><div class="scope-dot scope3"></div>Scope 3: ${formatNumber(summary.scope3_kg)}kg (${s3p}%)</span>
-          </div>
-        `;
-      } catch (e) {
-        document.getElementById('summaryStats').innerHTML = `<div class="error">エラー: ${e.message}</div>`;
-      }
+      const d = await fetchJSON('/api/dashboard/summary');
+      if (!d) return;
+      document.getElementById('summaryStats').innerHTML = 
+        '<div class="stat-card"><div class="val">'+fmt(d.total_emissions_kg)+'</div><div class="lbl">総排出量 (kg-CO2e)</div></div>' +
+        '<div class="stat-card"><div class="val">'+fmt(d.scope1_kg)+'</div><div class="lbl">Scope 1</div></div>' +
+        '<div class="stat-card"><div class="val">'+fmt(d.scope2_kg)+'</div><div class="lbl">Scope 2</div></div>' +
+        '<div class="stat-card"><div class="val">'+fmt(d.scope3_kg)+'</div><div class="lbl">Scope 3</div></div>' +
+        '<div class="stat-card"><div class="val">'+d.total_calculations+'</div><div class="lbl">算出回数</div></div>';
+      const t = d.total_emissions_kg || 1;
+      const p1 = ((d.scope1_kg/t)*100).toFixed(1), p2 = ((d.scope2_kg/t)*100).toFixed(1), p3 = ((d.scope3_kg/t)*100).toFixed(1);
+      document.getElementById('scopeBreakdown').innerHTML = 
+        '<div class="scope-bar"><div class="scope1" style="width:'+p1+'%"></div><div class="scope2" style="width:'+p2+'%"></div><div class="scope3" style="width:'+p3+'%"></div></div>' +
+        '<div class="scope-legend"><span><div class="scope-dot scope1"></div>Scope 1: '+fmt(d.scope1_kg)+'kg ('+p1+'%)</span><span><div class="scope-dot scope2"></div>Scope 2: '+fmt(d.scope2_kg)+'kg ('+p2+'%)</span><span><div class="scope-dot scope3"></div>Scope 3: '+fmt(d.scope3_kg)+'kg ('+p3+'%)</span></div>';
     }
 
     async function loadCalculations() {
-      try {
-        const calcs = await fetchJSON('/api/v1/calculations');
-        let html = `<table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th></tr></thead><tbody>`;
-        calcs.forEach(c => {
-          html += `<tr>
-            <td>${c.id}</td>
-            <td>${formatDate(c.created_at)}</td>
-            <td>${c.source_type}</td>
-            <td>${formatNumber(c.grand_total_kg)} kg</td>
-            <td>S1:${formatNumber(c.scope1)} / S2:${formatNumber(c.scope2)} / S3:${formatNumber(c.scope3)}</td>
-            <td><span class="status-badge status-done">${c.status}</span></td>
-          </tr>`;
-        });
-        html += `</tbody></table>`;
-        document.getElementById('calculationsList').innerHTML = html;
-      } catch (e) {
-        document.getElementById('calculationsList').innerHTML = `<div class="error">エラー: ${e.message}</div>`;
-      }
+      const calcs = await fetchJSON('/api/v1/calculations') || [];
+      let h = '<table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th></tr></thead><tbody>';
+      calcs.forEach(c => { h += '<tr><td>'+c.id+'</td><td>'+fmtDate(c.createdAt||c.created_at)+'</td><td>'+c.sourceType+'</td><td>'+fmt(c.grandTotalKg||c.grand_total_kg)+' kg</td><td>S1:'+fmt(c.scope1)+'/S2:'+fmt(c.scope2)+'/S3:'+fmt(c.scope3)+'</td><td><span class="status-badge status-done">'+c.status+'</span></td></tr>'; });
+      document.getElementById('calculationsList').innerHTML = h + '</tbody></table>';
     }
 
     async function loadUploads() {
-      try {
-        const uploads = await fetchJSON('/api/v1/uploads');
-        let html = `<table><thead><tr><th>ファイル名</th><th>アップロード日時</th><th>行数</th><th>状態</th></tr></thead><tbody>`;
-        uploads.forEach(u => {
-          html += `<tr>
-            <td>${u.filename}</td>
-            <td>${formatDate(u.uploaded_at)}</td>
-            <td>${u.row_count}</td>
-            <td><span class="status-badge status-done">${u.status}</span></td>
-          </tr>`;
-        });
-        html += `</tbody></table>`;
-        document.getElementById('uploadsList').innerHTML = html;
-      } catch (e) {
-        document.getElementById('uploadsList').innerHTML = `<div class="error">エラー: ${e.message}</div>`;
-      }
+      const u = await fetchJSON('/api/v1/uploads') || [];
+      let h = '<table><thead><tr><th>ファイル名</th><th>日時</th><th>行数</th><th>状態</th></tr></thead><tbody>';
+      u.forEach(x => { h += '<tr><td>'+x.filename+'</td><td>'+fmtDate(x.uploadedAt||x.uploaded_at)+'</td><td>'+x.rowCount+'</td><td><span class="status-badge status-done">'+x.status+'</span></td></tr>'; });
+      document.getElementById('uploadsList').innerHTML = h + '</tbody></table>';
     }
 
-    // Load all data
-    loadDashboard();
-    loadCalculations();
-    loadUploads();
+    loadDashboard(); loadCalculations(); loadUploads();
   </script>
 </body>
 </html>
