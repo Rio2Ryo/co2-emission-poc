@@ -2,108 +2,152 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CO2 Emission Calculator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CO2 Emission Calculator - MVP</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; padding: 2rem; }
-    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
-    .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
-    .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; max-width: 900px; }
-    .card h2 { font-size: 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-    .stats { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
-    .stat-card { background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 6px; padding: 0.6rem 1rem; min-width: 120px; text-align: center; }
-    .stat-card .val { font-size: 1.3rem; font-weight: 700; color: #0070f3; }
-    .stat-card .lbl { font-size: 0.75rem; color: #888; margin-top: 0.15rem; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
-    th { text-align: left; padding: 0.4rem 0.6rem; background: #f0f0f0; border-bottom: 2px solid #ddd; }
-    td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
-    .status-badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
-    .status-done { background: #22c55e; color: #fff; }
-    .scope-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; margin: 0.5rem 0; }
-    .scope1 { background: #ef4444; } .scope2 { background: #f59e0b; } .scope3 { background: #3b82f6; }
-    .scope-legend { display: flex; gap: 1rem; font-size: 0.75rem; margin-top: 0.5rem; flex-wrap: wrap; }
+    :root { --primary: #0070f3; --primary-dark: #005dd4; --success: #16a34a; --error: #dc2626; --warning: #f59e0b; --scope1: #ef4444; --scope2: #f59e0b; --scope3: #3b82f6; --bg: #f5f5f5; --card: #fff; --text: #222; --text-light: #666; --border: #e5e7eb; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 1rem; line-height: 1.5; }
+    @media (min-width: 768px) { body { padding: 2rem; } }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; } @media (min-width: 768px) { h1 { font-size: 1.5rem; } }
+    .subtitle { color: var(--text-light); font-size: 0.8rem; margin-bottom: 1.5rem; } @media (min-width: 768px) { .subtitle { font-size: 0.9rem; } }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; } @media (min-width: 768px) { .card { padding: 1.5rem; margin-bottom: 1.5rem; } }
+    .card h2 { font-size: 0.95rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; } @media (min-width: 768px) { .card h2 { font-size: 1rem; } }
+    .nav { display: flex; gap: 0.5rem; margin-bottom: 1rem; overflow-x: auto; padding-bottom: 0.5rem; }
+    .nav button { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 1rem; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+    .nav button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-bottom: 1rem; } @media (min-width: 640px) { .stats { grid-template-columns: repeat(3, 1fr); } } @media (min-width: 768px) { .stats { grid-template-columns: repeat(5, 1fr); gap: 1rem; } }
+    .stat-card { background: #f8f8f8; border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; text-align: center; }
+    .stat-card .val { font-size: 1.1rem; font-weight: 700; color: var(--primary); } @media (min-width: 768px) { .stat-card .val { font-size: 1.3rem; } }
+    .stat-card .lbl { font-size: 0.7rem; color: var(--text-light); margin-top: 0.25rem; } @media (min-width: 768px) { .stat-card .lbl { font-size: 0.75rem; } }
+    .scope-bar { display: flex; height: 20px; border-radius: 4px; overflow: hidden; margin: 0.75rem 0; } @media (min-width: 768px) { .scope-bar { height: 24px; } }
+    .scope1 { background: var(--scope1); } .scope2 { background: var(--scope2); } .scope3 { background: var(--scope3); }
+    .scope-legend { display: flex; gap: 0.75rem; font-size: 0.7rem; flex-wrap: wrap; } @media (min-width: 768px) { .scope-legend { font-size: 0.75rem; gap: 1rem; } }
     .scope-legend span { display: flex; align-items: center; gap: 0.25rem; }
-    .scope-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .loading { color: #666; font-style: italic; } .error { color: #dc2626; } .success { color: #16a34a; }
-    .upload-section { margin-bottom: 1.5rem; }
-    .upload-form { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-    .upload-form input[type="file"] { flex: 1; min-width: 200px; }
-    .upload-form select { padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; }
-    .btn { background: #0070f3; color: #fff; border: none; border-radius: 4px; padding: 0.5rem 1.2rem; cursor: pointer; font-size: 0.9rem; }
-    .btn:hover { background: #005dd4; } .btn:disabled { background: #aaa; cursor: not-allowed; }
+    .scope-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.75rem; margin-top: 0.5rem; } @media (min-width: 768px) { table { font-size: 0.85rem; } }
+    th { text-align: left; padding: 0.5rem 0.4rem; background: #f0f0f0; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    td { padding: 0.5rem 0.4rem; border-bottom: 1px solid var(--border); }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .status-badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem; }
+    .status-done { background: var(--success); color: #fff; }
+    .btn { background: var(--primary); color: #fff; border: none; border-radius: 6px; padding: 0.6rem 1rem; cursor: pointer; font-size: 0.85rem; width: 100%; margin-top: 0.5rem; } @media (min-width: 640px) { .btn { width: auto; } }
+    .btn:hover { background: var(--primary-dark); } .btn:disabled { background: #aaa; cursor: not-allowed; }
     .btn-secondary { background: #6b7280; } .btn-secondary:hover { background: #4b5563; }
-    .result-box { background: #f0f9ff; border: 1px solid #7dd3fc; border-radius: 6px; padding: 1rem; margin-top: 1rem; }
-    .mapping-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.5rem; margin: 1rem 0; }
-    .mapping-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: #f9fafb; border-radius: 4px; }
-    .mapping-item label { font-size: 0.85rem; color: #555; min-width: 80px; }
-    .mapping-item select { flex: 1; padding: 0.4rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85rem; }
-    .preview-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1rem; margin: 1rem 0; max-height: 200px; overflow: auto; }
+    .btn-sm { padding: 0.4rem 0.6rem; font-size: 0.75rem; width: auto; }
+    .upload-form { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .upload-form input[type="file"] { flex: 1; min-width: 150px; font-size: 0.85rem; }
+    .upload-form select { padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; }
+    .result-box { background: #f0f9ff; border: 1px solid #7dd3fc; border-radius: 6px; padding: 1rem; margin-top: 1rem; font-size: 0.85rem; }
+    .mapping-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; margin: 1rem 0; }
+    .mapping-item { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.5rem; background: #f9fafb; border-radius: 6px; }
+    .mapping-item label { font-size: 0.75rem; color: var(--text-light); }
+    .mapping-item select { padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.8rem; }
+    .preview-box { background: #f9fafb; border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; margin: 1rem 0; max-height: 150px; overflow: auto; font-size: 0.75rem; } @media (min-width: 768px) { .preview-box { max-height: 200px; } }
     .hidden { display: none; }
     .step { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
-    .step-num { background: #0070f3; color: #fff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; }
-    .step.done .step-num { background: #22c55e; }
-    .actions { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: space-between; align-items: center; }
+    .step-num { background: var(--primary); color: #fff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; flex-shrink: 0; }
+    .step.done .step-num { background: var(--success); }
+    .actions { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+    .loading { color: var(--text-light); font-style: italic; } .error { color: var(--error); } .success { color: var(--success); }
+    .chart-placeholder { background: #f9fafb; border: 1px dashed var(--border); border-radius: 6px; padding: 2rem; text-align: center; color: var(--text-light); font-size: 0.85rem; margin: 1rem 0; }
+    .factor-card { background: #f9fafb; border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; margin-bottom: 0.5rem; font-size: 0.8rem; }
+    .factor-card .name { font-weight: 600; color: var(--text); }
+    .factor-card .meta { color: var(--text-light); font-size: 0.7rem; margin-top: 0.25rem; }
+    .tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; overflow-x: auto; }
+    .tabs button { background: none; border: none; padding: 0.5rem 0.75rem; font-size: 0.8rem; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+    .tabs button.active { border-bottom-color: var(--primary); color: var(--primary); font-weight: 600; }
+    .form-group { margin-bottom: 0.75rem; }
+    .form-group label { display: block; font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.25rem; }
+    .form-group input, .form-group select { width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; }
+    .grid-2 { display: grid; grid-template-columns: 1fr; gap: 0.5rem; } @media (min-width: 640px) { .grid-2 { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; } }
   </style>
 </head>
 <body>
   <h1>🌍 CO2 Emission Calculator</h1>
-  <p class="subtitle">CSV アップロード → 列マッピング → 排出量算出 → ダッシュボード</p>
+  <p class="subtitle">MVP v1.0 - 会計データから CO2 排出量を算出</p>
 
-  <div class="card">
-    <div class="step"><span class="step-num">1</span><h2>📁 CSV アップロード</h2></div>
-    <div class="upload-section">
+  <div class="nav">
+    <button class="active" onclick="showTab('dashboard')">📊 ダッシュボード</button>
+    <button onclick="showTab('upload')">📁 アップロード</button>
+    <button onclick="showTab('factors')">📚 排出係数 DB</button>
+  </div>
+
+  <!-- Dashboard Tab -->
+  <div id="tab-dashboard">
+    <div class="card">
+      <div class="actions"><h2>📊 排出量ダッシュボード</h2><button class="btn btn-secondary btn-sm" onclick="exportCsv()">📥 CSV エクスポート</button></div>
+      <div id="summaryStats" class="stats"><div class="loading">データ読込中...</div></div>
+      <div class="scope-bar"><div class="scope1" style="width:40%"></div><div class="scope2" style="width:35%"></div><div class="scope3" style="width:25%"></div></div>
+      <div class="scope-legend"><span><div class="scope-dot scope1"></div>Scope 1</span><span><div class="scope-dot scope2"></div>Scope 2</span><span><div class="scope-dot scope3"></div>Scope 3</span></div>
+    </div>
+
+    <div class="card">
+      <h2>📋 算出履歴</h2>
+      <div class="table-wrap"><div id="calculationsList" class="loading">データ読込中...</div></div>
+    </div>
+
+    <div class="card" id="breakdownCard">
+      <h2>📄 排出量内訳詳細</h2>
+      <div class="table-wrap"><div id="breakdownList" class="loading">算出履歴から選択してください</div></div>
+    </div>
+  </div>
+
+  <!-- Upload Tab -->
+  <div id="tab-upload" class="hidden">
+    <div class="card">
+      <div class="step"><span class="step-num">1</span><h2>📁 CSV アップロード</h2></div>
       <div class="upload-form">
         <input type="file" id="csvFile" accept=".csv">
-        <select id="fileType">
-          <option value="accounting">会計データ</option>
-          <option value="sales">売上データ</option>
-          <option value="pos">POS データ</option>
-        </select>
+        <select id="fileType"><option value="accounting">会計データ</option><option value="sales">売上データ</option><option value="pos">POS データ</option></select>
         <button class="btn" onclick="uploadCSV()">アップロード</button>
       </div>
       <div id="uploadResult"></div>
     </div>
-  </div>
 
-  <div class="card hidden" id="mappingCard">
-    <div class="step done"><span class="step-num">1</span><span>アップロード</span></div>
-    <div class="step"><span class="step-num">2</span><h2>🔧 列マッピング</h2></div>
-    <p style="color:#666;font-size:0.85rem;margin-bottom:0.5rem;">CSV の各列がどの項目に対応するかを設定してください</p>
-    <div id="mappingGrid" class="mapping-grid"></div>
-    <div class="preview-box" id="dataPreview"></div>
-    <div class="actions">
-      <button class="btn" onclick="confirmMapping()">マッピングを保存して算出</button>
-      <button class="btn btn-secondary" onclick="cancelMapping()">キャンセル</button>
+    <div class="card hidden" id="mappingCard">
+      <div class="step done"><span class="step-num">1</span><span>アップロード</span></div>
+      <div class="step"><span class="step-num">2</span><h2>🔧 列マッピング</h2></div>
+      <p style="color:var(--text-light);font-size:0.75rem;margin-bottom:0.5rem;">CSV の各列がどの項目に対応するかを設定してください</p>
+      <div id="mappingGrid" class="mapping-grid"></div>
+      <div class="preview-box" id="dataPreview"></div>
+      <div class="actions"><button class="btn" onclick="confirmMapping()">マッピングを保存して算出</button><button class="btn btn-secondary" onclick="cancelMapping()">キャンセル</button></div>
     </div>
   </div>
 
-  <div class="card" id="card-dashboard">
-    <div class="actions">
-      <h2>📊 Dashboard</h2>
-      <button class="btn btn-secondary" onclick="exportCsv()">📥 CSV エクスポート</button>
+  <!-- Emission Factors Tab -->
+  <div id="tab-factors" class="hidden">
+    <div class="card">
+      <div class="actions"><h2>📚 排出係数データベース</h2><button class="btn btn-secondary btn-sm" onclick="showAddFactor()">➕ 追加</button></div>
+      <p style="color:var(--text-light);font-size:0.75rem;margin-bottom:1rem;">環境省（日本）、EPA（米国）、IEA（国際）などの排出係数を管理</p>
+      <div id="factorsList" class="loading">データ読込中...</div>
     </div>
-    <div id="summaryStats" class="stats"><div class="loading">データ読込中...</div></div>
-    <div id="scopeBreakdown"></div>
-  </div>
 
-  <div class="card" id="card-calculations">
-    <h2>📋 算出履歴</h2>
-    <div id="calculationsList" class="loading">データ読込中...</div>
-  </div>
-
-  <div class="card" id="card-uploads">
-    <h2>📁 アップロード履歴</h2>
-    <div id="uploadsList" class="loading">データ読込中...</div>
+    <div class="card hidden" id="addFactorCard">
+      <h2>➕ 排出係数を追加</h2>
+      <div class="grid-2">
+        <div class="form-group"><label>名称</label><input type="text" id="efName" placeholder="電気（日本）"></div>
+        <div class="form-group"><label>データソース</label><input type="text" id="efSource" placeholder="環境省 2023"></div>
+        <div class="form-group"><label>排出係数</label><input type="number" id="efFactor" step="0.001" placeholder="0.453"></div>
+        <div class="form-group"><label>単位</label><input type="text" id="efUnit" placeholder="kWh"></div>
+        <div class="form-group"><label>Scope</label><select id="efScope"><option value="1">Scope 1</option><option value="2">Scope 2</option><option value="3">Scope 3</option></select></div>
+        <div class="form-group"><label>国/地域</label><select id="efCountry"><option value="JP">日本</option><option value="US">米国</option><option value="INTL">国際</option></select></div>
+        <div class="form-group"><label>カテゴリ</label><select id="efCategory"><option value="energy">エネルギー</option><option value="fuel">燃料</option><option value="product">製品</option></select></div>
+      </div>
+      <div class="actions"><button class="btn" onclick="saveFactor()">保存</button><button class="btn btn-secondary" onclick="hideAddFactor()">キャンセル</button></div>
+    </div>
   </div>
 
   <script>
-    let currentUpload = null, currentMapping = {}, currentCalcs = [];
-    const columnMappings = {
-      accounting: [{key:'date',label:'日付'},{key:'subject',label:'科目'},{key:'amount',label:'金額'},{key:'summary',label:'摘要'},{key:'department',label:'部署'}],
-      sales: [{key:'date',label:'日付'},{key:'product',label:'商品名'},{key:'quantity',label:'数量'},{key:'unit_price',label:'単価'},{key:'store',label:'店舗'}],
-      pos: [{key:'datetime',label:'取引日時'},{key:'product_code',label:'商品コード'},{key:'product_name',label:'商品名'},{key:'quantity',label:'数量'},{key:'amount',label:'金額'},{key:'store_code',label:'店舗コード'}]
-    };
+    let currentUpload = null, currentMapping = {}, currentCalcs = [], currentFactors = [], currentBreakdown = null;
+
+    function showTab(tab) {
+      ['dashboard','upload','factors'].forEach(t => { document.getElementById('tab-'+t).classList.add('hidden'); });
+      document.getElementById('tab-'+tab).classList.remove('hidden');
+      document.querySelectorAll('.nav button').forEach((b,i) => { b.classList.toggle('active', ['dashboard','upload','factors'][i]===tab); });
+      if (tab==='dashboard') { loadDashboard(); loadCalculations(); }
+      if (tab==='factors') loadFactors();
+    }
 
     async function uploadCSV() {
       const fileInput = document.getElementById('csvFile'), fileType = document.getElementById('fileType').value, resultDiv = document.getElementById('uploadResult');
@@ -116,18 +160,19 @@
         currentUpload = data; currentMapping = {};
         document.getElementById('mappingCard').classList.remove('hidden');
         resultDiv.innerHTML = '<div class="success">✅ アップロード完了！列マッピングを設定してください</div>';
-        const mappings = columnMappings[fileType] || columnMappings.accounting;
+        const mappings = { accounting: [{key:'date',label:'日付'},{key:'subject',label:'科目'},{key:'amount',label:'金額'},{key:'summary',label:'摘要'},{key:'department',label:'部署'}], sales: [{key:'date',label:'日付'},{key:'product',label:'商品名'},{key:'quantity',label:'数量'},{key:'unit_price',label:'単価'},{key:'store',label:'店舗'}], pos: [{key:'datetime',label:'取引日時'},{key:'product_code',label:'商品コード'},{key:'product_name',label:'商品名'},{key:'quantity',label:'数量'},{key:'amount',label:'金額'},{key:'store_code',label:'店舗コード'}] };
+        const m = mappings[fileType] || mappings.accounting;
         let gridHtml = '';
-        data.headers.forEach(h => { const options = mappings.map(m => `<option value="${m.key}">${m.label}</option>`).join(''); const auto = autoMap(h, mappings); currentMapping[h] = auto; gridHtml += `<div class="mapping-item"><label>${h}</label><select onchange="currentMapping['${h}']=this.value"><option value="">-- 無視 --</option>${options}</select></div>`; });
+        data.headers.forEach(h => { const options = m.map(x => `<option value="${x.key}">${x.label}</option>`).join(''); const auto = autoMap(h); currentMapping[h] = auto; gridHtml += `<div class="mapping-item"><label>${h}</label><select onchange="currentMapping['${h}']=this.value"><option value="">-- 無視 --</option>${options}</select></div>`; });
         document.getElementById('mappingGrid').innerHTML = gridHtml;
         setTimeout(() => { document.querySelectorAll('#mappingGrid select').forEach((sel, i) => { sel.value = currentMapping[data.headers[i]] || ''; }); }, 100);
-        let previewHtml = '<strong>データプレビュー:</strong><table><thead><tr>'; data.headers.forEach(h => previewHtml += `<th>${h}</th>`); previewHtml += '</tr></thead><tbody>';
+        let previewHtml = '<strong>データプレビュー:</strong><div class="table-wrap"><table><thead><tr>'; data.headers.forEach(h => previewHtml += `<th>${h}</th>`); previewHtml += '</tr></thead><tbody>';
         data.sampleData.slice(0, 5).forEach(row => { previewHtml += '<tr>'; data.headers.forEach(h => previewHtml += `<td>${row[h]||''}</td>`); previewHtml += '</tr>'; });
-        previewHtml += '</tbody></table>'; document.getElementById('dataPreview').innerHTML = previewHtml;
+        previewHtml += '</tbody></table></div>'; document.getElementById('dataPreview').innerHTML = previewHtml;
       } catch (e) { resultDiv.innerHTML = '<div class="error">エラー：' + e.message + '</div>'; }
     }
 
-    function autoMap(h, mappings) { const l = h.toLowerCase(); if (l.includes('日付')||l.includes('date')) return 'date'; if (l.includes('科目')||l.includes('subject')) return 'subject'; if (l.includes('金額')||l.includes('amount')) return 'amount'; if (l.includes('商品')||l.includes('product')) return 'product'; if (l.includes('数量')||l.includes('quantity')) return 'quantity'; return ''; }
+    function autoMap(h) { const l = h.toLowerCase(); if (l.includes('日付')||l.includes('date')) return 'date'; if (l.includes('科目')||l.includes('subject')) return 'subject'; if (l.includes('金額')||l.includes('amount')) return 'amount'; if (l.includes('商品')||l.includes('product')) return 'product'; if (l.includes('数量')||l.includes('quantity')) return 'quantity'; return ''; }
     function confirmMapping() { if (!currentUpload) return; calculateEmissions(currentUpload, currentMapping); }
     function cancelMapping() { document.getElementById('mappingCard').classList.add('hidden'); document.getElementById('uploadResult').innerHTML = ''; currentUpload = null; }
 
@@ -135,8 +180,9 @@
       const resultDiv = document.getElementById('uploadResult'); resultDiv.innerHTML = '<div class="loading">排出量を算出中...</div>';
       try {
         const res = await fetch('/api/v1/uploads', { method: 'POST', body: JSON.stringify({ uploadId: upload.uploadId, mapping, fileType: upload.fileType, rows: upload.sampleData }), headers: { 'Content-Type': 'application/json' } }), data = await res.json();
+        currentBreakdown = data.breakdown;
         resultDiv.innerHTML = '<div class="success">✅ 排出量算出完了！</div><div class="result-box"><strong>結果:</strong><br>総排出量：<strong>' + data.emissions.total.toFixed(1) + ' kg-CO2e</strong><br>Scope1: ' + data.emissions.scope1.toFixed(1) + ' | Scope2: ' + data.emissions.scope2.toFixed(1) + ' | Scope3: ' + data.emissions.scope3.toFixed(1) + '</div>';
-        document.getElementById('mappingCard').classList.add('hidden'); loadDashboard(); loadCalculations(); loadUploads();
+        document.getElementById('mappingCard').classList.add('hidden'); showTab('dashboard'); loadDashboard(); loadCalculations();
       } catch (e) { resultDiv.innerHTML = '<div class="error">エラー：' + e.message + '</div>'; }
     }
 
@@ -148,19 +194,58 @@
       link.href = url; link.download = 'co2_emissions_' + new Date().toISOString().slice(0,10) + '.csv'; link.click();
     }
 
+    async function loadDashboard() {
+      try {
+        const d = await (await fetch('/api/dashboard/summary')).json(); if (!d) return;
+        document.getElementById('summaryStats').innerHTML = '<div class="stat-card"><div class="val">'+fmt(d.total_emissions_kg)+'</div><div class="lbl">総排出量</div></div><div class="stat-card"><div class="val">'+fmt(d.scope1_kg)+'</div><div class="lbl">Scope1</div></div><div class="stat-card"><div class="val">'+fmt(d.scope2_kg)+'</div><div class="lbl">Scope2</div></div><div class="stat-card"><div class="val">'+fmt(d.scope3_kg)+'</div><div class="lbl">Scope3</div></div><div class="stat-card"><div class="val">'+d.total_calculations+'</div><div class="lbl">算出回数</div></div>';
+        const t = d.total_emissions_kg||1, p1=((d.scope1_kg/t)*100).toFixed(1), p2=((d.scope2_kg/t)*100).toFixed(1), p3=((d.scope3_kg/t)*100).toFixed(1);
+        document.querySelector('.scope-bar').innerHTML = '<div class="scope1" style="width:'+p1+'%"></div><div class="scope2" style="width:'+p2+'%"></div><div class="scope3" style="width:'+p3+'%"></div>';
+      } catch(e) { console.error(e); }
+    }
+
+    async function loadCalculations() {
+      try {
+        currentCalcs = await (await fetch('/api/v1/calculations')).json() || [];
+        let h = '<div class="table-wrap"><table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th><th>詳細</th></tr></thead><tbody>';
+        currentCalcs.forEach(c => { h += '<tr><td>'+c.id+'</td><td>'+fmtDate(c.createdAt||c.created_at)+'</td><td>'+c.sourceType+'</td><td>'+fmt(c.grandTotalKg||c.grand_total_kg)+'</td><td>S1:'+fmt(c.scope1)+'/S2:'+fmt(c.scope2)+'/S3:'+fmt(c.scope3)+'</td><td><span class="status-badge status-done">'+c.status+'</span></td><td><button class="btn btn-sm" onclick="showBreakdown(\''+c.id+'\')">表示</button></td></tr>'; });
+        h += '</tbody></table></div>'; document.getElementById('calculationsList').innerHTML = h;
+      } catch(e) { document.getElementById('calculationsList').innerHTML = '<div class="error">エラー</div>'; }
+    }
+
+    async function showBreakdown(calcId) {
+      const calc = currentCalcs.find(c => c.id === calcId);
+      if (!calc || !calc.breakdown) { document.getElementById('breakdownList').innerHTML = '<div class="loading">内訳データがありません</div>'; return; }
+      currentBreakdown = calc.breakdown;
+      let h = '<div class="table-wrap"><table><thead><tr><th>行</th><th>科目/商品</th><th>金額/数量</th><th>排出係数</th><th>Scope</th><th>排出量 (kg-CO2e)</th></tr></thead><tbody>';
+      calc.breakdown.forEach(b => { h += '<tr><td>'+b.row+'</td><td>'+b.subject+'</td><td>'+b.amount+'</td><td>'+b.factorName+' (×'+b.factor+')</td><td>Scope'+b.scope+'</td><td><strong>'+b.emission.toFixed(2)+'</strong></td></tr>'; });
+      h += '<tr class="total-row"><td colspan="5"><strong>合計</strong></td><td><strong>'+calc.grandTotalKg.toFixed(2)+'</strong></td></tr>';
+      h += '</tbody></table></div>'; document.getElementById('breakdownList').innerHTML = h;
+      document.getElementById('breakdownCard').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function loadFactors() {
+      try {
+        currentFactors = await (await fetch('/api/v1/factors')).json() || [];
+        let h = '';
+        currentFactors.forEach(f => { h += '<div class="factor-card"><div class="name">'+f.name+' <span class="status-badge" style="background:'+ (f.scope===1?'#ef4444':f.scope===2?'#f59e0b':'#3b82f6') +';color:#fff">Scope'+f.scope+'</span></div><div class="meta"><strong>'+f.factor+'</strong> '+f.unit+' | '+f.source+' | '+f.country+' | '+f.category+'</div></div>'; });
+        document.getElementById('factorsList').innerHTML = h || '<div class="loading">排出係数はありません</div>';
+      } catch(e) { document.getElementById('factorsList').innerHTML = '<div class="error">エラー</div>'; }
+    }
+
+    function showAddFactor() { document.getElementById('addFactorCard').classList.remove('hidden'); }
+    function hideAddFactor() { document.getElementById('addFactorCard').classList.add('hidden'); }
+
+    async function saveFactor() {
+      const factor = { name: document.getElementById('efName').value, source: document.getElementById('efSource').value, factor: parseFloat(document.getElementById('efFactor').value), unit: document.getElementById('efUnit').value, scope: parseInt(document.getElementById('efScope').value), country: document.getElementById('efCountry').value, category: document.getElementById('efCategory').value };
+      try { await fetch('/api/v1/factors', { method: 'POST', body: JSON.stringify(factor), headers: { 'Content-Type': 'application/json' } }); hideAddFactor(); loadFactors(); }
+      catch(e) { alert('エラー：' + e.message); }
+    }
+
     async function fetchJSON(url) { try { return await (await fetch(url)).json(); } catch(e) { return null; } }
     function fmt(n) { return n.toLocaleString('ja-JP', { maximumFractionDigits: 1 }); }
     function fmtDate(iso) { return new Date(iso).toLocaleString('ja-JP'); }
 
-    async function loadDashboard() {
-      const d = await fetchJSON('/api/dashboard/summary'); if (!d) return;
-      document.getElementById('summaryStats').innerHTML = '<div class="stat-card"><div class="val">'+fmt(d.total_emissions_kg)+'</div><div class="lbl">総排出量</div></div><div class="stat-card"><div class="val">'+fmt(d.scope1_kg)+'</div><div class="lbl">Scope1</div></div><div class="stat-card"><div class="val">'+fmt(d.scope2_kg)+'</div><div class="lbl">Scope2</div></div><div class="stat-card"><div class="val">'+fmt(d.scope3_kg)+'</div><div class="lbl">Scope3</div></div><div class="stat-card"><div class="val">'+d.total_calculations+'</div><div class="lbl">算出回数</div></div>';
-      const t = d.total_emissions_kg||1, p1=((d.scope1_kg/t)*100).toFixed(1), p2=((d.scope2_kg/t)*100).toFixed(1), p3=((d.scope3_kg/t)*100).toFixed(1);
-      document.getElementById('scopeBreakdown').innerHTML = '<div class="scope-bar"><div class="scope1" style="width:'+p1+'%"></div><div class="scope2" style="width:'+p2+'%"></div><div class="scope3" style="width:'+p3+'%"></div></div><div class="scope-legend"><span><div class="scope-dot scope1"></div>Scope1: '+fmt(d.scope1_kg)+'kg</span><span><div class="scope-dot scope2"></div>Scope2: '+fmt(d.scope2_kg)+'kg</span><span><div class="scope-dot scope3"></div>Scope3: '+fmt(d.scope3_kg)+'kg</span></div>';
-    }
-    async function loadCalculations() { currentCalcs = await fetchJSON('/api/v1/calculations')||[]; let h = '<table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th></tr></thead><tbody>'; currentCalcs.forEach(c => { h += '<tr><td>'+c.id+'</td><td>'+fmtDate(c.createdAt||c.created_at)+'</td><td>'+c.sourceType+'</td><td>'+fmt(c.grandTotalKg||c.grand_total_kg)+'</td><td>S1:'+fmt(c.scope1)+'/S2:'+fmt(c.scope2)+'/S3:'+fmt(c.scope3)+'</td><td><span class="status-badge status-done">'+c.status+'</span></td></tr>'; }); document.getElementById('calculationsList').innerHTML = h+'</tbody></table>'; }
-    async function loadUploads() { const u = await fetchJSON('/api/v1/uploads')||[]; let h = '<table><thead><tr><th>ファイル名</th><th>日時</th><th>行数</th><th>状態</th></tr></thead><tbody>'; u.forEach(x => { h += '<tr><td>'+x.filename+'</td><td>'+fmtDate(x.uploadedAt||x.uploaded_at)+'</td><td>'+x.rowCount+'</td><td><span class="status-badge status-done">'+x.status+'</span></td></tr>'; }); document.getElementById('uploadsList').innerHTML = h+'</tbody></table>'; }
-    loadDashboard(); loadCalculations(); loadUploads();
+    loadDashboard(); loadCalculations();
   </script>
 </body>
 </html>
