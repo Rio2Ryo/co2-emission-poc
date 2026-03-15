@@ -1,426 +1,159 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CO2 Emission Calculator</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; padding: 2rem; }
-  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
-  .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
-  .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; max-width: 680px; }
-  .card h2 { font-size: 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-  .step-num { background: #0070f3; color: #fff; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; flex-shrink: 0; }
-  .step-num.done { background: #22c55e; }
-  label { display: block; font-size: 0.85rem; color: #555; margin-bottom: 0.4rem; }
-  input[type="file"] { display: block; margin-bottom: 1rem; font-size: 0.9rem; }
-  select { display: block; padding: 0.4rem 0.6rem; font-size: 0.9rem; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 1rem; width: 100%; }
-  button { background: #0070f3; color: #fff; border: none; border-radius: 4px; padding: 0.5rem 1.2rem; font-size: 0.9rem; cursor: pointer; }
-  button:disabled { background: #aaa; cursor: not-allowed; }
-  button:hover:not(:disabled) { background: #005dd4; }
-  .status { font-size: 0.85rem; color: #555; margin-top: 0.75rem; min-height: 1.2em; }
-  .status.error { color: #dc2626; }
-  .status.ok { color: #16a34a; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
-  th { text-align: left; padding: 0.4rem 0.6rem; background: #f0f0f0; border-bottom: 2px solid #ddd; }
-  td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
-  .total-row td { font-weight: 700; background: #f8f8f8; }
-  .download-link { display: inline-block; margin-top: 0.75rem; font-size: 0.85rem; color: #0070f3; text-decoration: none; }
-  .download-link:hover { text-decoration: underline; }
-  .hidden { display: none; }
-  .api-note { font-size: 0.75rem; color: #999; margin-top: 0.25rem; font-family: monospace; }
-  .stat-card { background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 6px; padding: 0.6rem 1rem; min-width: 120px; text-align: center; }
-  .stat-card .val { font-size: 1.3rem; font-weight: 700; color: #0070f3; }
-  .stat-card .lbl { font-size: 0.75rem; color: #888; margin-top: 0.15rem; }
-  .table-wrap { overflow-x: auto; }
-  @media (max-width: 600px) {
-    body { padding: 1rem; }
-    .card { padding: 1rem; }
-    .stat-card { min-width: 90px; padding: 0.4rem 0.6rem; }
-    .stat-card .val { font-size: 1rem; }
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CO2 Emission Calculator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; padding: 2rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; max-width: 900px; }
+    .card h2 { font-size: 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+    .step-num { background: #0070f3; color: #fff; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; flex-shrink: 0; }
+    .step-num.done { background: #22c55e; }
+    .stats { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .stat-card { background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 6px; padding: 0.6rem 1rem; min-width: 120px; text-align: center; }
+    .stat-card .val { font-size: 1.3rem; font-weight: 700; color: #0070f3; }
+    .stat-card .lbl { font-size: 0.75rem; color: #888; margin-top: 0.15rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
+    th { text-align: left; padding: 0.4rem 0.6rem; background: #f0f0f0; border-bottom: 2px solid #ddd; }
+    td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
+    .total-row td { font-weight: 700; background: #f8f8f8; }
+    .status-badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+    .status-done { background: #22c55e; color: #fff; }
+    .status-pending { background: #f59e0b; color: #fff; }
+    .scope-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; margin: 0.5rem 0; }
+    .scope1 { background: #ef4444; }
+    .scope2 { background: #f59e0b; }
+    .scope3 { background: #3b82f6; }
+    .scope-legend { display: flex; gap: 1rem; font-size: 0.75rem; margin-top: 0.5rem; }
+    .scope-legend span { display: flex; align-items: center; gap: 0.25rem; }
+    .scope-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .loading { color: #666; font-style: italic; }
+    .error { color: #dc2626; }
+    @media (max-width: 600px) { body { padding: 1rem; } .card { padding: 1rem; } }
+  </style>
 </head>
 <body>
+  <h1>🌍 CO2 Emission Calculator</h1>
+  <p class="subtitle">会計データ・売上データから排出量を算出</p>
 
-<h1>CO2 Emission Calculator</h1>
-<p class="subtitle">Upload activity data → calculate scope emissions → export report</p>
+  <!-- Dashboard Stats -->
+  <div class="card" id="card-dashboard">
+    <h2>📊 Dashboard</h2>
+    <div id="summaryStats" class="stats">
+      <div class="loading">データ読込中...</div>
+    </div>
+    <div id="scopeBreakdown"></div>
+  </div>
 
-<!-- Dashboard: Stats + Past Calculations -->
-<div class="card" id="card-dashboard">
-  <h2>Dashboard — Past Calculations</h2>
-  <div id="summaryStats" style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem"></div>
-  <div id="dashboardContent"><p style="font-size:0.85rem;color:#888">Loading job history...</p></div>
-</div>
+  <!-- Recent Calculations -->
+  <div class="card" id="card-calculations">
+    <h2>📋 算出履歴</h2>
+    <div id="calculationsList" class="loading">データ読込中...</div>
+  </div>
 
-<!-- Previous Uploads (history) -->
-<div class="card" id="card-history">
-  <h2>Previous Uploads</h2>
-  <div id="historyContent"><p style="font-size:0.85rem;color:#888">Loading history...</p></div>
-</div>
+  <!-- Uploads -->
+  <div class="card" id="card-uploads">
+    <h2>📁 アップロード済みファイル</h2>
+    <div id="uploadsList" class="loading">データ読込中...</div>
+  </div>
 
-<!-- Step 1: Upload -->
-<div class="card" id="card-upload">
-  <h2><span class="step-num" id="num-upload">1</span> Upload CSV</h2>
-  <label for="csvFile">Activity data file (CSV):</label>
-  <input type="file" id="csvFile" accept=".csv">
-  <label for="dataType">Data type:</label>
-  <select id="dataType">
-    <option value="accounting">Accounting</option>
-    <option value="sales">Sales</option>
-    <option value="pos">POS</option>
-  </select>
-  <button id="btnUpload" onclick="doUpload()">Upload</button>
-  <div class="status" id="statusUpload"></div>
-  <div class="api-note">POST /api/v1/uploads</div>
-</div>
-
-<!-- Step 2: Calculate -->
-<div class="card hidden" id="card-calc">
-  <h2><span class="step-num" id="num-calc">2</span> Run Calculation</h2>
-  <label for="factorVersion">Emission factor version:</label>
-  <select id="factorVersion">
-    <option value="2023">2023</option>
-    <option value="2022">2022</option>
-    <option value="2021">2021</option>
-  </select>
-  <button id="btnCalc" onclick="doCalculate()">Calculate</button>
-  <div class="status" id="statusCalc"></div>
-  <div class="api-note">POST /api/v1/calculations → poll /api/v1/calculations/{job_id}/status</div>
-</div>
-
-<!-- Step 3: Results -->
-<div class="card hidden" id="card-results">
-  <h2><span class="step-num" id="num-results">3</span> Results</h2>
-  <div id="resultsContent"></div>
-  <div class="api-note">GET /api/v1/calculations/{job_id}/results</div>
-</div>
-
-<!-- Step 4: Compare -->
-<div class="card hidden" id="card-compare">
-  <h2><span class="step-num" id="num-compare">4</span> Compare with another version</h2>
-  <label for="compareVersion">Compare against emission factor version:</label>
-  <select id="compareVersion">
-    <option value="2021">2021</option>
-    <option value="2022">2022</option>
-    <option value="2023">2023</option>
-  </select>
-  <button id="btnCompare" onclick="doCompare()">Compare</button>
-  <div class="status" id="statusCompare"></div>
-  <div id="comparisonContent"></div>
-  <div class="api-note">POST /api/v1/calculations/{job_id}/recalculate → GET /api/v1/comparisons?job_ids=...</div>
-</div>
-
-<!-- Emission Factors Reference -->
-<details class="card" id="card-factors">
-  <summary style="cursor:pointer;font-weight:600">Emission Factor Reference</summary>
-  <div id="factorsContent" style="margin-top:0.75rem"><p style="font-size:0.85rem;color:#888">Loading factors...</p></div>
-  <div class="api-note">GET /api/v1/factors</div>
-</details>
-
-<!-- Audit Log -->
-<details class="card" id="card-audit">
-  <summary style="cursor:pointer;font-weight:600">Audit Log</summary>
-  <div id="auditContent" style="margin-top:0.75rem"><p style="font-size:0.85rem;color:#888">Click to load audit trail...</p></div>
-  <div class="api-note">GET /api/v1/audit-logs</div>
-</details>
-
-<script>
-const API = '';  // same origin; change to http://localhost:8000 if serving separately
-let uploadId = null;
-let jobId = null;
-
-function setStatus(id, msg, type) {
-  const el = document.getElementById(id);
-  el.textContent = msg;
-  el.className = 'status' + (type ? ' ' + type : '');
-}
-
-async function doUpload() {
-  const file = document.getElementById('csvFile').files[0];
-  if (!file) { setStatus('statusUpload', 'Please select a CSV file.', 'error'); return; }
-  const dataType = document.getElementById('dataType').value;
-
-  const btn = document.getElementById('btnUpload');
-  btn.disabled = true;
-  setStatus('statusUpload', 'Uploading…');
-
-  const form = new FormData();
-  form.append('file', file);
-  form.append('data_type', dataType);
-
-  try {
-    const res = await fetch(API + '/api/v1/uploads', { method: 'POST', body: form });
-    if (!res.ok) { throw new Error(`HTTP ${res.status}: ${await res.text()}`); }
-    const data = await res.json();
-    uploadId = data.upload_id;
-
-    // Auto-save mapping if available
-    await fetch(API + `/api/v1/uploads/${uploadId}/mappings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mappings: {} })  // empty = use auto-detected mapping
-    });
-
-    setStatus('statusUpload', `Uploaded ${data.row_count} rows (id: ${uploadId.slice(0,8)}…)`, 'ok');
-    document.getElementById('num-upload').classList.add('done');
-    document.getElementById('card-calc').classList.remove('hidden');
-  } catch (e) {
-    setStatus('statusUpload', 'Upload failed: ' + e.message, 'error');
-    btn.disabled = false;
-  }
-}
-
-async function doCalculate() {
-  if (!uploadId) return;
-  const version = document.getElementById('factorVersion').value;
-  const btn = document.getElementById('btnCalc');
-  btn.disabled = true;
-  setStatus('statusCalc', 'Submitting calculation…');
-
-  try {
-    const res = await fetch(API + '/api/v1/calculations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ upload_id: uploadId, emission_factor_version: version })
-    });
-    if (!res.ok) { throw new Error(`HTTP ${res.status}: ${await res.text()}`); }
-    const job = await res.json();
-    jobId = job.job_id;
-
-    // Poll for completion
-    let status = job.status;
-    let attempts = 0;
-    while (status !== 'completed' && status !== 'failed' && attempts < 20) {
-      await new Promise(r => setTimeout(r, 1000));
-      const poll = await fetch(API + `/api/v1/calculations/${jobId}/status`);
-      if (poll.ok) { status = (await poll.json()).status; }
-      attempts++;
-      setStatus('statusCalc', `Status: ${status} (${attempts}s…)`);
+  <script>
+    const API_BASE = '';
+    
+    async function fetchJSON(url) {
+      const res = await fetch(API_BASE + url);
+      return res.json();
     }
 
-    if (status !== 'completed') { throw new Error(`Job ended with status: ${status}`); }
-
-    setStatus('statusCalc', 'Calculation complete.', 'ok');
-    document.getElementById('num-calc').classList.add('done');
-    await showResults();
-  } catch (e) {
-    setStatus('statusCalc', 'Calculation failed: ' + e.message, 'error');
-    btn.disabled = false;
-  }
-}
-
-function buildSvgChart(s) {
-  const maxVal = Math.max(s.scope1_total, s.scope2_total, s.scope3_total, 0.01);
-  const bw = v => Math.max(Math.round(v / maxVal * 280), 1);
-  const bars = [
-    { label: 'Scope 1', val: s.scope1_total, color: '#ef4444' },
-    { label: 'Scope 2', val: s.scope2_total, color: '#3b82f6' },
-    { label: 'Scope 3', val: s.scope3_total, color: '#22c55e' },
-  ];
-  let svg = '<svg width="460" height="130" xmlns="http://www.w3.org/2000/svg" style="margin-top:1rem">';
-  bars.forEach((b, i) => {
-    const y = 10 + i * 40;
-    svg += `<text x="0" y="${y+16}" font-size="13" fill="#444">${b.label}</text>`;
-    svg += `<rect x="70" y="${y}" width="${bw(b.val)}" height="24" fill="${b.color}" rx="3"/>`;
-    svg += `<text x="${75+bw(b.val)}" y="${y+16}" font-size="12" fill="#666">${b.val.toFixed(1)}</text>`;
-  });
-  svg += '</svg>';
-  return svg;
-}
-
-async function showResults() {
-  const res = await fetch(API + `/api/v1/calculations/${jobId}/results`);
-  if (!res.ok) { return; }
-  const data = await res.json();
-  const s = data.summary;
-
-  const csvUrl = API + `/api/v1/reports/${jobId}/csv`;
-
-  document.getElementById('resultsContent').innerHTML = `
-    <table>
-      <thead><tr><th>Scope</th><th>kg-CO2e</th></tr></thead>
-      <tbody>
-        <tr><td>Scope 1 (direct)</td><td>${s.scope1_total.toFixed(2)}</td></tr>
-        <tr><td>Scope 2 (energy indirect)</td><td>${s.scope2_total.toFixed(2)}</td></tr>
-        <tr><td>Scope 3 (other indirect)</td><td>${s.scope3_total.toFixed(2)}</td></tr>
-        <tr class="total-row"><td>Grand Total</td><td>${s.grand_total.toFixed(2)}</td></tr>
-      </tbody>
-    </table>
-    <p style="font-size:0.8rem;color:#888;margin-top:0.5rem">${s.calculated_row_count} rows calculated, ${s.unclassified_count} unclassified</p>
-    <a class="download-link" href="${csvUrl}" download="emission_report.csv">Download CSV report</a>
-    ${buildSvgChart(s)}
-  `;
-  document.getElementById('num-results').classList.add('done');
-  document.getElementById('card-results').classList.remove('hidden');
-  document.getElementById('card-compare').classList.remove('hidden');
-}
-
-async function doCompare() {
-  const version = document.getElementById('compareVersion').value;
-  const btn = document.getElementById('btnCompare');
-  btn.disabled = true;
-  setStatus('statusCompare', 'Recalculating with version ' + version + '…');
-
-  try {
-    const res = await fetch(API + `/api/v1/calculations/${jobId}/recalculate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emission_factor_version: version })
-    });
-    if (!res.ok) { throw new Error(`HTTP ${res.status}: ${await res.text()}`); }
-    const job2 = await res.json();
-    const job2Id = job2.job_id;
-
-    const cmpRes = await fetch(API + `/api/v1/comparisons?job_ids=${jobId},${job2Id}`);
-    if (!cmpRes.ok) { throw new Error(`HTTP ${cmpRes.status}: ${await cmpRes.text()}`); }
-    const cmp = await cmpRes.json();
-    const c = cmp.comparisons;
-    const d = cmp.delta;
-
-    document.getElementById('comparisonContent').innerHTML = `
-      <table>
-        <thead><tr><th>Scope</th><th>Version ${c[0].factor_version}</th><th>Version ${c[1].factor_version}</th><th>Delta</th></tr></thead>
-        <tbody>
-          <tr><td>Scope 1</td><td>${c[0].scope1_total.toFixed(2)}</td><td>${c[1].scope1_total.toFixed(2)}</td><td>${d.scope1 >= 0 ? '+' : ''}${d.scope1.toFixed(2)}</td></tr>
-          <tr><td>Scope 2</td><td>${c[0].scope2_total.toFixed(2)}</td><td>${c[1].scope2_total.toFixed(2)}</td><td>${d.scope2 >= 0 ? '+' : ''}${d.scope2.toFixed(2)}</td></tr>
-          <tr><td>Scope 3</td><td>${c[0].scope3_total.toFixed(2)}</td><td>${c[1].scope3_total.toFixed(2)}</td><td>${d.scope3 >= 0 ? '+' : ''}${d.scope3.toFixed(2)}</td></tr>
-          <tr class="total-row"><td>Total</td><td>${c[0].grand_total.toFixed(2)}</td><td>${c[1].grand_total.toFixed(2)}</td><td>${d.grand_total >= 0 ? '+' : ''}${d.grand_total.toFixed(2)}</td></tr>
-        </tbody>
-      </table>
-    `;
-    setStatus('statusCompare', 'Comparison complete.', 'ok');
-    document.getElementById('num-compare').classList.add('done');
-  } catch (e) {
-    setStatus('statusCompare', 'Comparison failed: ' + e.message, 'error');
-    btn.disabled = false;
-  }
-}
-
-async function loadHistory() {
-  try {
-    const res = await fetch(API + '/api/v1/uploads');
-    if (!res.ok) { document.getElementById('historyContent').innerHTML = '<p style="font-size:0.85rem;color:#888">No history available.</p>'; return; }
-    const data = await res.json();
-    if (!data.uploads || data.uploads.length === 0) {
-      document.getElementById('historyContent').innerHTML = '<p style="font-size:0.85rem;color:#888">No previous uploads.</p>';
-      return;
+    function formatNumber(n) {
+      return n.toLocaleString('ja-JP', { maximumFractionDigits: 1 });
     }
-    let html = '<table><thead><tr><th>File</th><th>Type</th><th>Rows</th><th>Status</th><th></th></tr></thead><tbody>';
-    data.uploads.forEach(u => {
-      html += `<tr><td>${u.filename}</td><td>${u.data_type}</td><td>${u.row_count}</td><td>${u.status}</td>`;
-      html += `<td><button onclick="useUpload('${u.upload_id}')">Recalculate</button> <button onclick="deleteUpload('${u.upload_id}')" style="background:#dc2626">Delete</button></td></tr>`;
-    });
-    html += '</tbody></table>';
-    document.getElementById('historyContent').innerHTML = html;
-  } catch(e) {
-    document.getElementById('historyContent').innerHTML = '<p style="font-size:0.85rem;color:#888">Could not load history.</p>';
-  }
-}
 
-function useUpload(uid) {
-  uploadId = uid;
-  document.getElementById('num-upload').classList.add('done');
-  document.getElementById('card-calc').classList.remove('hidden');
-  setStatus('statusUpload', 'Using previous upload: ' + uid.slice(0,8) + '…', 'ok');
-  window.scrollTo({ top: document.getElementById('card-calc').offsetTop - 20, behavior: 'smooth' });
-}
+    function formatDate(iso) {
+      return new Date(iso).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
 
-async function deleteUpload(uid) {
-  if (!window.confirm('Delete this upload and all related data?')) return;
-  const res = await fetch(API + `/api/v1/uploads/${uid}`, { method: 'DELETE' });
-  if (res.ok || res.status === 204) {
-    loadHistory();
+    async function loadDashboard() {
+      try {
+        const summary = await fetchJSON('/api/dashboard/summary');
+        document.getElementById('summaryStats').innerHTML = `
+          <div class="stat-card"><div class="val">${formatNumber(summary.total_emissions_kg)}</div><div class="lbl">総排出量 (kg-CO2e)</div></div>
+          <div class="stat-card"><div class="val">${formatNumber(summary.scope1_kg)}</div><div class="lbl">Scope 1</div></div>
+          <div class="stat-card"><div class="val">${formatNumber(summary.scope2_kg)}</div><div class="lbl">Scope 2</div></div>
+          <div class="stat-card"><div class="val">${formatNumber(summary.scope3_kg)}</div><div class="lbl">Scope 3</div></div>
+          <div class="stat-card"><div class="val">${summary.total_calculations}</div><div class="lbl">算出回数</div></div>
+        `;
+        
+        const total = summary.total_emissions_kg;
+        const s1p = ((summary.scope1_kg / total) * 100).toFixed(1);
+        const s2p = ((summary.scope2_kg / total) * 100).toFixed(1);
+        const s3p = ((summary.scope3_kg / total) * 100).toFixed(1);
+        
+        document.getElementById('scopeBreakdown').innerHTML = `
+          <div class="scope-bar">
+            <div class="scope1" style="width:${s1p}%"></div>
+            <div class="scope2" style="width:${s2p}%"></div>
+            <div class="scope3" style="width:${s3p}%"></div>
+          </div>
+          <div class="scope-legend">
+            <span><div class="scope-dot scope1"></div>Scope 1: ${formatNumber(summary.scope1_kg)}kg (${s1p}%)</span>
+            <span><div class="scope-dot scope2"></div>Scope 2: ${formatNumber(summary.scope2_kg)}kg (${s2p}%)</span>
+            <span><div class="scope-dot scope3"></div>Scope 3: ${formatNumber(summary.scope3_kg)}kg (${s3p}%)</span>
+          </div>
+        `;
+      } catch (e) {
+        document.getElementById('summaryStats').innerHTML = `<div class="error">エラー: ${e.message}</div>`;
+      }
+    }
+
+    async function loadCalculations() {
+      try {
+        const calcs = await fetchJSON('/api/v1/calculations');
+        let html = `<table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th></tr></thead><tbody>`;
+        calcs.forEach(c => {
+          html += `<tr>
+            <td>${c.id}</td>
+            <td>${formatDate(c.created_at)}</td>
+            <td>${c.source_type}</td>
+            <td>${formatNumber(c.grand_total_kg)} kg</td>
+            <td>S1:${formatNumber(c.scope1)} / S2:${formatNumber(c.scope2)} / S3:${formatNumber(c.scope3)}</td>
+            <td><span class="status-badge status-done">${c.status}</span></td>
+          </tr>`;
+        });
+        html += `</tbody></table>`;
+        document.getElementById('calculationsList').innerHTML = html;
+      } catch (e) {
+        document.getElementById('calculationsList').innerHTML = `<div class="error">エラー: ${e.message}</div>`;
+      }
+    }
+
+    async function loadUploads() {
+      try {
+        const uploads = await fetchJSON('/api/v1/uploads');
+        let html = `<table><thead><tr><th>ファイル名</th><th>アップロード日時</th><th>行数</th><th>状態</th></tr></thead><tbody>`;
+        uploads.forEach(u => {
+          html += `<tr>
+            <td>${u.filename}</td>
+            <td>${formatDate(u.uploaded_at)}</td>
+            <td>${u.row_count}</td>
+            <td><span class="status-badge status-done">${u.status}</span></td>
+          </tr>`;
+        });
+        html += `</tbody></table>`;
+        document.getElementById('uploadsList').innerHTML = html;
+      } catch (e) {
+        document.getElementById('uploadsList').innerHTML = `<div class="error">エラー: ${e.message}</div>`;
+      }
+    }
+
+    // Load all data
     loadDashboard();
-  }
-}
-
-async function loadDashboard() {
-  try {
-    const res = await fetch(API + '/api/v1/calculations');
-    if (!res.ok) { document.getElementById('dashboardContent').innerHTML = '<p style="font-size:0.85rem;color:#888">No job history.</p>'; return; }
-    const data = await res.json();
-    if (!data.jobs || data.jobs.length === 0) {
-      document.getElementById('dashboardContent').innerHTML = '<p style="font-size:0.85rem;color:#888">No past calculations yet.</p>';
-      return;
-    }
-    let html = '<table><thead><tr><th>Factor Ver.</th><th>Status</th><th>Grand Total (kg-CO2e)</th><th>Created</th><th></th></tr></thead><tbody>';
-    data.jobs.forEach(j => {
-      const reportLink = j.status === 'completed' ? `<a class="download-link" href="${API}/api/v1/reports/${j.job_id}/json" target="_blank">View Report</a>` : '';
-      html += `<tr><td>${j.emission_factor_version}</td><td>${j.status}</td><td>${j.grand_total.toFixed(2)}</td><td>${j.created_at || ''}</td><td>${reportLink}</td></tr>`;
-    });
-    html += '</tbody></table>';
-    document.getElementById('dashboardContent').innerHTML = html;
-  } catch(e) {
-    document.getElementById('dashboardContent').innerHTML = '<p style="font-size:0.85rem;color:#888">Could not load dashboard.</p>';
-  }
-}
-
-async function loadFactors() {
-  try {
-    const res = await fetch(API + '/api/v1/factors');
-    if (!res.ok) { document.getElementById('factorsContent').innerHTML = '<p style="font-size:0.85rem;color:#888">Could not load factors.</p>'; return; }
-    const data = await res.json();
-    let html = '';
-    Object.keys(data.versions).sort().reverse().forEach(ver => {
-      html += `<h3 style="font-size:0.9rem;margin:0.75rem 0 0.25rem">Version ${ver}</h3>`;
-      html += '<table><thead><tr><th>Activity</th><th>Unit</th><th>Factor</th><th>Scope</th></tr></thead><tbody>';
-      data.versions[ver].forEach(f => {
-        html += `<tr><td>${f.activity_type}</td><td>${f.unit}</td><td>${f.factor_value}</td><td>${f.scope}</td></tr>`;
-      });
-      html += '</tbody></table>';
-    });
-    document.getElementById('factorsContent').innerHTML = html;
-  } catch(e) {
-    document.getElementById('factorsContent').innerHTML = '<p style="font-size:0.85rem;color:#888">Could not load factors.</p>';
-  }
-}
-
-async function loadAudit() {
-  try {
-    const res = await fetch(API + '/api/v1/audit-logs?limit=20');
-    if (!res.ok) { document.getElementById('auditContent').innerHTML = '<p style="font-size:0.85rem;color:#888">Could not load audit log.</p>'; return; }
-    const data = await res.json();
-    if (!data.logs || data.logs.length === 0) {
-      document.getElementById('auditContent').innerHTML = '<p style="font-size:0.85rem;color:#888">No audit entries yet.</p>';
-      return;
-    }
-    let html = '<table><thead><tr><th>Time</th><th>Action</th><th>Resource</th><th>Detail</th></tr></thead><tbody>';
-    data.logs.forEach(l => {
-      const detail = l.detail ? JSON.stringify(l.detail).slice(0,80) : '';
-      html += `<tr><td style="white-space:nowrap">${l.created_at || ''}</td><td>${l.action}</td><td>${l.resource_type}/${(l.resource_id||'').slice(0,8)}</td><td style="font-size:0.8rem">${detail}</td></tr>`;
-    });
-    html += '</tbody></table>';
-    document.getElementById('auditContent').innerHTML = html;
-  } catch(e) {
-    document.getElementById('auditContent').innerHTML = '<p style="font-size:0.85rem;color:#888">Could not load audit log.</p>';
-  }
-}
-
-document.getElementById('card-audit').addEventListener('toggle', e => { if (e.target.open) loadAudit(); });
-
-async function loadSummary() {
-  try {
-    const res = await fetch(API + '/api/v1/dashboard/summary');
-    if (!res.ok) return;
-    const d = await res.json();
-    const el = document.getElementById('summaryStats');
-    el.innerHTML = `
-      <div class="stat-card"><div class="val">${d.completed_jobs}</div><div class="lbl">Completed Jobs</div></div>
-      <div class="stat-card"><div class="val">${d.total_uploads}</div><div class="lbl">Uploads</div></div>
-      <div class="stat-card"><div class="val">${d.total_emissions_kg.toFixed(1)}</div><div class="lbl">Total kg-CO2e</div></div>
-      <div class="stat-card"><div class="val">${d.scope1_total.toFixed(1)}</div><div class="lbl">Scope 1</div></div>
-      <div class="stat-card"><div class="val">${d.scope2_total.toFixed(1)}</div><div class="lbl">Scope 2</div></div>
-      <div class="stat-card"><div class="val">${d.scope3_total.toFixed(1)}</div><div class="lbl">Scope 3</div></div>
-    `;
-  } catch(e) {}
-}
-
-loadSummary();
-loadDashboard();
-loadHistory();
-loadFactors();
-</script>
+    loadCalculations();
+    loadUploads();
+  </script>
 </body>
 </html>
