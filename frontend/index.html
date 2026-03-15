@@ -104,7 +104,8 @@
     </div>
 
     <div class="card">
-      <div class="actions"><h2>📊 排出量ダッシュボード</h2><button class="btn btn-secondary btn-sm" onclick="exportCsv()">📥 CSV エクスポート</button></div>
+      <div class="actions"><h2>📊 排出量ダッシュボード</h2><div style="display:flex;gap:0.5rem"><button class="btn btn-sm" onclick="runDemo()">🚀 デモ実行</button><button class="btn btn-secondary btn-sm" onclick="exportCsv()">📥 CSV エクスポート</button></div></div>
+      <p style="color:var(--text-light);font-size:0.75rem;margin-bottom:0.75rem;">サンプルデータ（会計 32 行）を自動読込して CO2 排出量を算出します</p>
       <div id="summaryStats" class="stats"><div class="loading">データ読込中...</div></div>
       <div class="scope-bar"><div class="scope1" style="width:40%"></div><div class="scope2" style="width:35%"></div><div class="scope3" style="width:25%"></div></div>
       <div class="scope-legend"><span><div class="scope-dot scope1"></div>Scope 1</span><span><div class="scope-dot scope2"></div>Scope 2</span><span><div class="scope-dot scope3"></div>Scope 3</span></div>
@@ -256,9 +257,13 @@
       if (!calc || !calc.breakdown) { document.getElementById('breakdownList').innerHTML = '<div class="loading">内訳データがありません</div>'; return; }
       currentBreakdown = calc.breakdown;
       document.getElementById('breakdownCount').innerHTML = '合計 ' + calc.breakdown.length + ' 行';
-      let h = '<div class="table-wrap"><table><thead><tr><th>行</th><th>科目/商品</th><th>金額/数量</th><th>排出係数</th><th>Scope</th><th>排出量 (kg-CO2e)</th></tr></thead><tbody>';
-      calc.breakdown.forEach(b => { h += '<tr><td>'+b.row+'</td><td>'+b.subject+'</td><td>'+b.amount+'</td><td>'+b.factorName+' (×'+b.factor+')</td><td><span class="status-badge s'+b.scope+'">Scope'+b.scope+'</span></td><td><strong>'+b.emission.toFixed(2)+'</strong></td></tr>'; });
-      h += '<tr class="total-row"><td colspan="5"><strong>合計</strong></td><td><strong>'+calc.grandTotalKg.toFixed(2)+'</strong></td></tr>';
+      let h = '<div class="table-wrap"><table><thead><tr><th>行</th><th>日付</th><th>科目</th><th>金額 (円)</th><th>摘要</th><th>排出係数</th><th>Scope</th><th>排出量 (kg-CO2e)</th></tr></thead><tbody>';
+      calc.breakdown.forEach(b => { 
+        const scopeClass = b.scope === 1 ? 's1' : b.scope === 2 ? 's2' : b.scope === 3 ? 's3' : '';
+        const scopeLabel = b.scope > 0 ? 'Scope'+b.scope : '-';
+        h += '<tr><td>'+b.row+'</td><td>'+b.date+'</td><td><strong>'+b.subject+'</strong></td><td>'+fmt(b.amount)+'</td><td style="font-size:0.7rem;color:#666">'+b.summary+'</td><td style="font-size:0.7rem">'+b.factorName+'</td><td><span class="status-badge '+scopeClass+'">'+scopeLabel+'</span></td><td><strong>'+b.emission.toFixed(2)+'</strong></td></tr>'; 
+      });
+      h += '<tr style="background:#f0f0f0"><td colspan="7"><strong>合計</strong></td><td><strong>'+calc.grandTotalKg.toFixed(2)+'</strong></td></tr>';
       h += '</tbody></table></div>'; document.getElementById('breakdownList').innerHTML = h;
       document.getElementById('breakdownCard').scrollIntoView({ behavior: 'smooth' });
     }
@@ -293,6 +298,130 @@
       const factor = { name: document.getElementById('efName').value, source: document.getElementById('efSource').value, factor: parseFloat(document.getElementById('efFactor').value), unit: document.getElementById('efUnit').value, scope: parseInt(document.getElementById('efScope').value), country: document.getElementById('efCountry').value, category: document.getElementById('efCategory').value, description: document.getElementById('efDesc').value };
       try { await fetch('/api/v1/factors', { method: 'POST', body: JSON.stringify(factor), headers: { 'Content-Type': 'application/json' } }); hideAddFactor(); loadFactors(); }
       catch(e) { alert('エラー：' + e.message); }
+    }
+
+    // デモ機能：サンプルデータで CO2 算出をシミュレート
+    const DEMO_ACCOUNTING_DATA = [
+      {date:'2024-01-05',subject:'電気代',amount:285000,summary:'本社オフィス電気',department:'管理部門'},
+      {date:'2024-01-08',subject:'ガソリン',amount:52000,summary:'営業車 A 給油',department:'営業部門'},
+      {date:'2024-01-10',subject:'都市ガス',amount:125000,summary:'本社暖房',department:'管理部門'},
+      {date:'2024-01-12',subject:'軽油',amount:38000,summary:'配送トラック',department:'物流部門'},
+      {date:'2024-01-15',subject:'電気代',amount:195000,summary:'工場電気',department:'製造部門'},
+      {date:'2024-01-18',subject:'ガソリン',amount:45000,summary:'営業車 B 給油',department:'営業部門'},
+      {date:'2024-01-20',subject:'重油',amount:280000,summary:'工場ボイラー',department:'製造部門'},
+      {date:'2024-01-22',subject:'灯油',amount:65000,summary:'倉庫暖房',department:'物流部門'},
+      {date:'2024-01-25',subject:'電気代',amount:145000,summary:'支店電気',department:'営業部門'},
+      {date:'2024-01-28',subject:'LP ガス',amount:42000,summary:'社員寮',department:'総務部門'},
+      {date:'2024-02-01',subject:'電気代',amount:295000,summary:'本社オフィス電気',department:'管理部門'},
+      {date:'2024-02-05',subject:'ガソリン',amount:58000,summary:'営業車 A 給油',department:'営業部門'},
+      {date:'2024-02-08',subject:'都市ガス',amount:115000,summary:'本社暖房',department:'管理部門'},
+      {date:'2024-02-10',subject:'軽油',amount:42000,summary:'配送トラック',department:'物流部門'},
+      {date:'2024-02-12',subject:'電気代',amount:185000,summary:'工場電気',department:'製造部門'},
+      {date:'2024-02-15',subject:'石炭',amount:450000,summary:'工場燃料',department:'製造部門'},
+      {date:'2024-02-18',subject:'ガソリン',amount:48000,summary:'営業車 B 給油',department:'営業部門'},
+      {date:'2024-02-20',subject:'重油',amount:265000,summary:'工場ボイラー',department:'製造部門'},
+      {date:'2024-02-22',subject:'灯油',amount:58000,summary:'倉庫暖房',department:'物流部門'},
+      {date:'2024-02-25',subject:'電気代',amount:155000,summary:'支店電気',department:'営業部門'},
+      {date:'2024-02-28',subject:'LP ガス',amount:38000,summary:'社員寮',department:'総務部門'},
+      {date:'2024-03-01',subject:'電気代',amount:275000,summary:'本社オフィス電気',department:'管理部門'},
+      {date:'2024-03-05',subject:'ガソリン',amount:55000,summary:'営業車 A 給油',department:'営業部門'},
+      {date:'2024-03-08',subject:'都市ガス',amount:95000,summary:'本社暖房',department:'管理部門'},
+      {date:'2024-03-10',subject:'軽油',amount:45000,summary:'配送トラック',department:'物流部門'},
+      {date:'2024-03-12',subject:'電気代',amount:190000,summary:'工場電気',department:'製造部門'},
+      {date:'2024-03-15',subject:'ガソリン',amount:50000,summary:'営業車 B 給油',department:'営業部門'},
+      {date:'2024-03-18',subject:'重油',amount:245000,summary:'工場ボイラー',department:'製造部門'},
+      {date:'2024-03-20',subject:'灯油',amount:48000,summary:'倉庫暖房',department:'物流部門'},
+      {date:'2024-03-22',subject:'電気代',amount:148000,summary:'支店電気',department:'営業部門'},
+      {date:'2024-03-25',subject:'LP ガス',amount:35000,summary:'社員寮',department:'総務部門'},
+      {date:'2024-03-28',subject:'ガソリン',amount:62000,summary:'出張車両',department:'営業部門'},
+    ];
+
+    // 排出係数（金額→CO2 換算レート：概算）
+    const EMISSION_FACTORS = {
+      '電気代': {scope:2, rate:0.000874, unit:'kg-CO2e/円', desc:'電力 (0.453kg/kWh)'},
+      'ガソリン': {scope:1, rate:0.0341, unit:'kg-CO2e/円', desc:'ガソリン (2.32kg/L)'},
+      '都市ガス': {scope:1, rate:0.00248, unit:'kg-CO2e/円', desc:'天然ガス (2.21kg/m³)'},
+      '軽油': {scope:1, rate:0.0387, unit:'kg-CO2e/円', desc:'軽油 (2.58kg/L)'},
+      '重油': {scope:1, rate:0.0415, unit:'kg-CO2e/円', desc:'重油 (2.77kg/L)'},
+      '灯油': {scope:1, rate:0.0381, unit:'kg-CO2e/円', desc:'灯油 (2.54kg/L)'},
+      'LP ガス': {scope:1, rate:0.0236, unit:'kg-CO2e/円', desc:'LP ガス (1.57kg/L)'},
+      '石炭': {scope:1, rate:0.0369, unit:'kg-CO2e/円', desc:'石炭 (2.46kg/kg)'},
+    };
+
+    async function runDemo() {
+      const statsDiv = document.getElementById('summaryStats');
+      statsDiv.innerHTML = '<div class="loading">🚀 デモ実行中：サンプルデータ（32 行）を読込中...</div>';
+      
+      await new Promise(r => setTimeout(r, 500)); // UX: 少し待たせる
+      
+      // 各行を計算
+      const breakdown = DEMO_ACCOUNTING_DATA.map((row, i) => {
+        const factor = EMISSION_FACTORS[row.subject] || null;
+        const emission = factor ? row.amount * factor.rate : 0;
+        return {
+          row: i + 1,
+          date: row.date,
+          subject: row.subject,
+          amount: row.amount,
+          summary: row.summary,
+          department: row.department,
+          factor: factor ? factor.rate : 0,
+          factorName: factor ? factor.desc : '未分類',
+          scope: factor ? factor.scope : 0,
+          emission: emission,
+          status: factor ? 'calculated' : 'unclassified'
+        };
+      });
+
+      // 集計
+      const scope1 = breakdown.filter(r => r.scope === 1).reduce((s, r) => s + r.emission, 0);
+      const scope2 = breakdown.filter(r => r.scope === 2).reduce((s, r) => s + r.emission, 0);
+      const scope3 = breakdown.filter(r => r.scope === 3).reduce((s, r) => s + r.emission, 0);
+      const total = scope1 + scope2 + scope3;
+      const classified = breakdown.filter(r => r.status === 'calculated').length;
+      const unclassified = breakdown.filter(r => r.status === 'unclassified').length;
+
+      // ダッシュボード表示
+      document.getElementById('summaryStats').innerHTML = 
+        '<div class="stat-card"><div class="val">'+fmt(total)+'</div><div class="lbl">総排出量</div></div>'+
+        '<div class="stat-card"><div class="val" style="color:var(--scope1)">'+fmt(scope1)+'</div><div class="lbl">Scope 1</div></div>'+
+        '<div class="stat-card"><div class="val" style="color:var(--scope2)">'+fmt(scope2)+'</div><div class="lbl">Scope 2</div></div>'+
+        '<div class="stat-card"><div class="val" style="color:var(--scope3)">'+fmt(scope3)+'</div><div class="lbl">Scope 3</div></div>'+
+        '<div class="stat-card"><div class="val">'+classified+'</div><div class="lbl">分類済行</div></div>';
+
+      const p1 = ((scope1/total)*100).toFixed(1), p2 = ((scope2/total)*100).toFixed(1), p3 = ((scope3/total)*100).toFixed(1);
+      document.querySelector('.scope-bar').innerHTML = 
+        '<div class="scope1" style="width:'+p1+'%"></div>'+
+        '<div class="scope2" style="width:'+p2+'%"></div>'+
+        '<div class="scope3" style="width:'+p3+'%"></div>';
+
+      // 算出履歴に追加
+      const demoCalc = {
+        id: 'demo-' + Date.now(),
+        createdAt: new Date().toISOString(),
+        sourceType: 'accounting (demo)',
+        grandTotalKg: total,
+        scope1: scope1,
+        scope2: scope2,
+        scope3: scope3,
+        status: 'completed',
+        breakdown: breakdown
+      };
+      currentCalcs.unshift(demoCalc);
+      document.getElementById('calcCount').innerHTML = '合計 ' + currentCalcs.length + ' 件';
+      
+      // 算出履歴テーブル更新
+      let h = '<div class="table-wrap"><table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th><th>詳細</th></tr></thead><tbody>';
+      currentCalcs.forEach(c => { 
+        h += '<tr><td>'+c.id.slice(0,8)+'</td><td>'+fmtDate(c.createdAt)+'</td><td>'+c.sourceType+'</td><td>'+fmt(c.grandTotalKg)+'</td><td>S1:'+fmt(c.scope1)+'/S2:'+fmt(c.scope2)+'/S3:'+fmt(c.scope3)+'</td><td><span class="status-badge status-done">'+c.status+'</span></td><td><button class="btn btn-sm" onclick="showBreakdown(\''+c.id+'\')">表示</button></td></tr>'; 
+      });
+      h += '</tbody></table></div>';
+      document.getElementById('calculationsList').innerHTML = h;
+
+      // 内訳詳細を自動表示
+      showBreakdown(demoCalc.id);
+
+      statsDiv.innerHTML = '<div class="success">✅ デモ完了！32 行の会計データから CO2 排出量を算出しました</div>';
     }
 
     async function fetchJSON(url) { try { return await (await fetch(url)).json(); } catch(e) { return null; } }
