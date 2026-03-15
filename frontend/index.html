@@ -32,16 +32,26 @@
     .upload-form select { padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; }
     .btn { background: #0070f3; color: #fff; border: none; border-radius: 4px; padding: 0.5rem 1.2rem; cursor: pointer; font-size: 0.9rem; }
     .btn:hover { background: #005dd4; } .btn:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-secondary { background: #6b7280; } .btn-secondary:hover { background: #4b5563; }
     .result-box { background: #f0f9ff; border: 1px solid #7dd3fc; border-radius: 6px; padding: 1rem; margin-top: 1rem; }
+    .mapping-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.5rem; margin: 1rem 0; }
+    .mapping-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: #f9fafb; border-radius: 4px; }
+    .mapping-item label { font-size: 0.85rem; color: #555; min-width: 80px; }
+    .mapping-item select { flex: 1; padding: 0.4rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85rem; }
+    .preview-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1rem; margin: 1rem 0; max-height: 200px; overflow: auto; }
+    .hidden { display: none; }
+    .step { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+    .step-num { background: #0070f3; color: #fff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; }
+    .step.done .step-num { background: #22c55e; }
   </style>
 </head>
 <body>
   <h1>🌍 CO2 Emission Calculator</h1>
-  <p class="subtitle">CSV アップロード → 排出量算出 → ダッシュボード</p>
+  <p class="subtitle">CSV アップロード → 列マッピング → 排出量算出 → ダッシュボード</p>
 
-  <!-- Upload Section -->
+  <!-- Step 1: Upload -->
   <div class="card">
-    <h2>📁 CSV アップロード</h2>
+    <div class="step"><span class="step-num">1</span><h2>📁 CSV アップロード</h2></div>
     <div class="upload-section">
       <div class="upload-form">
         <input type="file" id="csvFile" accept=".csv">
@@ -53,6 +63,19 @@
         <button class="btn" onclick="uploadCSV()">アップロード</button>
       </div>
       <div id="uploadResult"></div>
+    </div>
+  </div>
+
+  <!-- Step 2: Mapping -->
+  <div class="card hidden" id="mappingCard">
+    <div class="step done"><span class="step-num">1</span><span>アップロード</span></div>
+    <div class="step"><span class="step-num">2</span><h2>🔧 列マッピング</h2></div>
+    <p style="color:#666;font-size:0.85rem;margin-bottom:0.5rem;">CSV の各列がどの項目に対応するかを設定してください</p>
+    <div id="mappingGrid" class="mapping-grid"></div>
+    <div class="preview-box" id="dataPreview"></div>
+    <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+      <button class="btn" onclick="confirmMapping()">マッピングを保存して算出</button>
+      <button class="btn btn-secondary" onclick="cancelMapping()">キャンセル</button>
     </div>
   </div>
 
@@ -76,6 +99,34 @@
   </div>
 
   <script>
+    let currentUpload = null;
+    let currentMapping = {};
+
+    const columnMappings = {
+      accounting: [
+        { key: 'date', label: '日付', required: false },
+        { key: 'subject', label: '科目', required: true },
+        { key: 'amount', label: '金額', required: true },
+        { key: 'summary', label: '摘要', required: false },
+        { key: 'department', label: '部署', required: false }
+      ],
+      sales: [
+        { key: 'date', label: '日付', required: false },
+        { key: 'product', label: '商品名', required: true },
+        { key: 'quantity', label: '数量', required: true },
+        { key: 'unit_price', label: '単価', required: false },
+        { key: 'store', label: '店舗', required: false }
+      ],
+      pos: [
+        { key: 'datetime', label: '取引日時', required: false },
+        { key: 'product_code', label: '商品コード', required: false },
+        { key: 'product_name', label: '商品名', required: true },
+        { key: 'quantity', label: '数量', required: true },
+        { key: 'amount', label: '金額', required: true },
+        { key: 'store_code', label: '店舗コード', required: false }
+      ]
+    };
+
     async function uploadCSV() {
       const fileInput = document.getElementById('csvFile');
       const fileType = document.getElementById('fileType').value;
@@ -86,6 +137,7 @@
       const formData = new FormData();
       formData.append('file', fileInput.files[0]);
       formData.append('fileType', fileType);
+      formData.append('preview', 'true');
       
       resultDiv.innerHTML = '<div class="loading">アップロード中...</div>';
       
@@ -93,12 +145,105 @@
         const res = await fetch('/api/v1/uploads', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.error) { resultDiv.innerHTML = '<div class="error">エラー：' + data.error + '</div>'; return; }
-        resultDiv.innerHTML = '<div class="success">✅ アップロード完了！</div>' +
+        
+        currentUpload = data;
+        currentMapping = {};
+        
+        // Show mapping UI
+        document.getElementById('mappingCard').classList.remove('hidden');
+        document.getElementById('uploadResult').innerHTML = '<div class="success">✅ アップロード完了！列マッピングを設定してください</div>';
+        
+        // Build mapping grid
+        const mappings = columnMappings[fileType] || columnMappings.accounting;
+        let gridHtml = '';
+        data.headers.forEach(h => {
+          const options = mappings.map(m => `<option value="${m.key}">${m.label}</option>`).join('');
+          const auto = autoMap(h, mappings);
+          currentMapping[h] = auto;
+          gridHtml += `<div class="mapping-item">
+            <label>${h}</label>
+            <select onchange="currentMapping['${h}']=this.value">
+              <option value="">-- 無視 --</option>
+              ${options}
+            </select>
+          </div>`;
+        });
+        document.getElementById('mappingGrid').innerHTML = gridHtml;
+        
+        // Set auto-mapped values
+        setTimeout(() => {
+          document.querySelectorAll('#mappingGrid select').forEach((sel, i) => {
+            const h = data.headers[i];
+            sel.value = currentMapping[h] || '';
+          });
+        }, 100);
+        
+        // Preview
+        let previewHtml = '<strong>データプレビュー（最大 5 行）:</strong><table><thead><tr>';
+        data.headers.forEach(h => previewHtml += `<th>${h}</th>`);
+        previewHtml += '</tr></thead><tbody>';
+        data.sampleData.slice(0, 5).forEach(row => {
+          previewHtml += '<tr>';
+          data.headers.forEach(h => previewHtml += `<td>${row[h] || ''}</td>`);
+          previewHtml += '</tr>';
+        });
+        previewHtml += '</tbody></table>';
+        document.getElementById('dataPreview').innerHTML = previewHtml;
+        
+      } catch (e) { resultDiv.innerHTML = '<div class="error">エラー：' + e.message + '</div>'; }
+    }
+
+    function autoMap(header, mappings) {
+      const h = header.toLowerCase();
+      if (h.includes('日付') || h.includes('date')) return 'date';
+      if (h.includes('科目') || h.includes('subject')) return 'subject';
+      if (h.includes('金額') || h.includes('amount') || h.includes('price')) return 'amount';
+      if (h.includes('商品') || h.includes('product')) return 'product';
+      if (h.includes('数量') || h.includes('quantity')) return 'quantity';
+      if (h.includes('部署') || h.includes('department')) return 'department';
+      if (h.includes('店舗') || h.includes('store')) return 'store';
+      if (h.includes('摘要') || h.includes('summary')) return 'summary';
+      if (h.includes('コード') || h.includes('code')) return 'product_code';
+      return '';
+    }
+
+    function confirmMapping() {
+      if (!currentUpload) return;
+      // Calculate with mapping
+      calculateEmissions(currentUpload, currentMapping);
+    }
+
+    function cancelMapping() {
+      document.getElementById('mappingCard').classList.add('hidden');
+      document.getElementById('uploadResult').innerHTML = '';
+      currentUpload = null;
+    }
+
+    async function calculateEmissions(upload, mapping) {
+      const resultDiv = document.getElementById('uploadResult');
+      resultDiv.innerHTML = '<div class="loading">排出量を算出中...</div>';
+      
+      try {
+        const res = await fetch('/api/v1/uploads', {
+          method: 'POST',
+          body: JSON.stringify({
+            uploadId: upload.uploadId,
+            mapping: mapping,
+            fileType: upload.fileType,
+            rows: upload.sampleData
+          }),
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        
+        resultDiv.innerHTML = '<div class="success">✅ 排出量算出完了！</div>' +
           '<div class="result-box"><strong>排出量算出結果:</strong><br>' +
           '総排出量：<strong>' + data.emissions.total.toFixed(1) + ' kg-CO2e</strong><br>' +
           'Scope 1: ' + data.emissions.scope1.toFixed(1) + ' kg | ' +
           'Scope 2: ' + data.emissions.scope2.toFixed(1) + ' kg | ' +
           'Scope 3: ' + data.emissions.scope3.toFixed(1) + ' kg</div>';
+        
+        document.getElementById('mappingCard').classList.add('hidden');
         loadDashboard(); loadCalculations(); loadUploads();
       } catch (e) { resultDiv.innerHTML = '<div class="error">エラー：' + e.message + '</div>'; }
     }
