@@ -6,18 +6,18 @@
       "use": "@vercel/static"
     },
     {
-      "src": "backend/app/main.py",
+      "src": "backend/api/index.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "backend/app/main.py"
+      "dest": "backend/api/$1"
     },
     {
       "src": "/health",
-      "dest": "backend/app/main.py"
+      "dest": "backend/api/index.py"
     },
     {
       "src": "/(.*)",

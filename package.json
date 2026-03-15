@@ -1,0 +1,23 @@
+{
+  "name": "co2-emission-poc",
+  "version": "1.0.0",
+  "description": "会計データ・売上/POSデータから CO2 排出量を算出し、将来的に環境金融・カーボンクレジット活用へ拡張できるシステムの PoC / MVP。",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rio2Ryo/co2-emission-poc.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Rio2Ryo/co2-emission-poc/issues"
+  },
+  "homepage": "https://github.com/Rio2Ryo/co2-emission-poc#readme",
+  "devDependencies": {
+    "wrangler": "^4.73.0"
+  }
+}
