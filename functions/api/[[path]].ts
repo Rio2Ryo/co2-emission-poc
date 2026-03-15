@@ -119,3 +119,19 @@ function calcEmissions(rows: string[], fileType: string) {
   });
   return { scope1: s1, scope2: s2, scope3: s3, total: s1 + s2 + s3 };
 }
+
+// CSV エクスポート
+function exportToCsv(calcs: any[]) {
+  const headers = ['ID', '日時', 'ソース', '総排出量', 'Scope1', 'Scope2', 'Scope3', '状態'];
+  const rows = calcs.map(c => [
+    c.id,
+    c.createdAt || c.created_at,
+    c.sourceType,
+    c.grandTotalKg || c.grand_total_kg,
+    c.scope1,
+    c.scope2,
+    c.scope3,
+    c.status
+  ]);
+  return [headers, ...rows].map(r => r.join(',')).join('\n');
+}

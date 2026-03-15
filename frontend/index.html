@@ -43,13 +43,13 @@
     .step { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
     .step-num { background: #0070f3; color: #fff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; }
     .step.done .step-num { background: #22c55e; }
+    .actions { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: space-between; align-items: center; }
   </style>
 </head>
 <body>
   <h1>🌍 CO2 Emission Calculator</h1>
   <p class="subtitle">CSV アップロード → 列マッピング → 排出量算出 → ダッシュボード</p>
 
-  <!-- Step 1: Upload -->
   <div class="card">
     <div class="step"><span class="step-num">1</span><h2>📁 CSV アップロード</h2></div>
     <div class="upload-section">
@@ -66,186 +66,86 @@
     </div>
   </div>
 
-  <!-- Step 2: Mapping -->
   <div class="card hidden" id="mappingCard">
     <div class="step done"><span class="step-num">1</span><span>アップロード</span></div>
     <div class="step"><span class="step-num">2</span><h2>🔧 列マッピング</h2></div>
     <p style="color:#666;font-size:0.85rem;margin-bottom:0.5rem;">CSV の各列がどの項目に対応するかを設定してください</p>
     <div id="mappingGrid" class="mapping-grid"></div>
     <div class="preview-box" id="dataPreview"></div>
-    <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+    <div class="actions">
       <button class="btn" onclick="confirmMapping()">マッピングを保存して算出</button>
       <button class="btn btn-secondary" onclick="cancelMapping()">キャンセル</button>
     </div>
   </div>
 
-  <!-- Dashboard -->
   <div class="card" id="card-dashboard">
-    <h2>📊 Dashboard</h2>
+    <div class="actions">
+      <h2>📊 Dashboard</h2>
+      <button class="btn btn-secondary" onclick="exportCsv()">📥 CSV エクスポート</button>
+    </div>
     <div id="summaryStats" class="stats"><div class="loading">データ読込中...</div></div>
     <div id="scopeBreakdown"></div>
   </div>
 
-  <!-- Calculations -->
   <div class="card" id="card-calculations">
     <h2>📋 算出履歴</h2>
     <div id="calculationsList" class="loading">データ読込中...</div>
   </div>
 
-  <!-- Uploads -->
   <div class="card" id="card-uploads">
     <h2>📁 アップロード履歴</h2>
     <div id="uploadsList" class="loading">データ読込中...</div>
   </div>
 
   <script>
-    let currentUpload = null;
-    let currentMapping = {};
-
+    let currentUpload = null, currentMapping = {}, currentCalcs = [];
     const columnMappings = {
-      accounting: [
-        { key: 'date', label: '日付', required: false },
-        { key: 'subject', label: '科目', required: true },
-        { key: 'amount', label: '金額', required: true },
-        { key: 'summary', label: '摘要', required: false },
-        { key: 'department', label: '部署', required: false }
-      ],
-      sales: [
-        { key: 'date', label: '日付', required: false },
-        { key: 'product', label: '商品名', required: true },
-        { key: 'quantity', label: '数量', required: true },
-        { key: 'unit_price', label: '単価', required: false },
-        { key: 'store', label: '店舗', required: false }
-      ],
-      pos: [
-        { key: 'datetime', label: '取引日時', required: false },
-        { key: 'product_code', label: '商品コード', required: false },
-        { key: 'product_name', label: '商品名', required: true },
-        { key: 'quantity', label: '数量', required: true },
-        { key: 'amount', label: '金額', required: true },
-        { key: 'store_code', label: '店舗コード', required: false }
-      ]
+      accounting: [{key:'date',label:'日付'},{key:'subject',label:'科目'},{key:'amount',label:'金額'},{key:'summary',label:'摘要'},{key:'department',label:'部署'}],
+      sales: [{key:'date',label:'日付'},{key:'product',label:'商品名'},{key:'quantity',label:'数量'},{key:'unit_price',label:'単価'},{key:'store',label:'店舗'}],
+      pos: [{key:'datetime',label:'取引日時'},{key:'product_code',label:'商品コード'},{key:'product_name',label:'商品名'},{key:'quantity',label:'数量'},{key:'amount',label:'金額'},{key:'store_code',label:'店舗コード'}]
     };
 
     async function uploadCSV() {
-      const fileInput = document.getElementById('csvFile');
-      const fileType = document.getElementById('fileType').value;
-      const resultDiv = document.getElementById('uploadResult');
-      
+      const fileInput = document.getElementById('csvFile'), fileType = document.getElementById('fileType').value, resultDiv = document.getElementById('uploadResult');
       if (!fileInput.files[0]) { resultDiv.innerHTML = '<div class="error">ファイルを選択してください</div>'; return; }
-      
-      const formData = new FormData();
-      formData.append('file', fileInput.files[0]);
-      formData.append('fileType', fileType);
-      formData.append('preview', 'true');
-      
+      const formData = new FormData(); formData.append('file', fileInput.files[0]); formData.append('fileType', fileType); formData.append('preview', 'true');
       resultDiv.innerHTML = '<div class="loading">アップロード中...</div>';
-      
       try {
-        const res = await fetch('/api/v1/uploads', { method: 'POST', body: formData });
-        const data = await res.json();
+        const res = await fetch('/api/v1/uploads', { method: 'POST', body: formData }), data = await res.json();
         if (data.error) { resultDiv.innerHTML = '<div class="error">エラー：' + data.error + '</div>'; return; }
-        
-        currentUpload = data;
-        currentMapping = {};
-        
-        // Show mapping UI
+        currentUpload = data; currentMapping = {};
         document.getElementById('mappingCard').classList.remove('hidden');
-        document.getElementById('uploadResult').innerHTML = '<div class="success">✅ アップロード完了！列マッピングを設定してください</div>';
-        
-        // Build mapping grid
+        resultDiv.innerHTML = '<div class="success">✅ アップロード完了！列マッピングを設定してください</div>';
         const mappings = columnMappings[fileType] || columnMappings.accounting;
         let gridHtml = '';
-        data.headers.forEach(h => {
-          const options = mappings.map(m => `<option value="${m.key}">${m.label}</option>`).join('');
-          const auto = autoMap(h, mappings);
-          currentMapping[h] = auto;
-          gridHtml += `<div class="mapping-item">
-            <label>${h}</label>
-            <select onchange="currentMapping['${h}']=this.value">
-              <option value="">-- 無視 --</option>
-              ${options}
-            </select>
-          </div>`;
-        });
+        data.headers.forEach(h => { const options = mappings.map(m => `<option value="${m.key}">${m.label}</option>`).join(''); const auto = autoMap(h, mappings); currentMapping[h] = auto; gridHtml += `<div class="mapping-item"><label>${h}</label><select onchange="currentMapping['${h}']=this.value"><option value="">-- 無視 --</option>${options}</select></div>`; });
         document.getElementById('mappingGrid').innerHTML = gridHtml;
-        
-        // Set auto-mapped values
-        setTimeout(() => {
-          document.querySelectorAll('#mappingGrid select').forEach((sel, i) => {
-            const h = data.headers[i];
-            sel.value = currentMapping[h] || '';
-          });
-        }, 100);
-        
-        // Preview
-        let previewHtml = '<strong>データプレビュー（最大 5 行）:</strong><table><thead><tr>';
-        data.headers.forEach(h => previewHtml += `<th>${h}</th>`);
-        previewHtml += '</tr></thead><tbody>';
-        data.sampleData.slice(0, 5).forEach(row => {
-          previewHtml += '<tr>';
-          data.headers.forEach(h => previewHtml += `<td>${row[h] || ''}</td>`);
-          previewHtml += '</tr>';
-        });
-        previewHtml += '</tbody></table>';
-        document.getElementById('dataPreview').innerHTML = previewHtml;
-        
+        setTimeout(() => { document.querySelectorAll('#mappingGrid select').forEach((sel, i) => { sel.value = currentMapping[data.headers[i]] || ''; }); }, 100);
+        let previewHtml = '<strong>データプレビュー:</strong><table><thead><tr>'; data.headers.forEach(h => previewHtml += `<th>${h}</th>`); previewHtml += '</tr></thead><tbody>';
+        data.sampleData.slice(0, 5).forEach(row => { previewHtml += '<tr>'; data.headers.forEach(h => previewHtml += `<td>${row[h]||''}</td>`); previewHtml += '</tr>'; });
+        previewHtml += '</tbody></table>'; document.getElementById('dataPreview').innerHTML = previewHtml;
       } catch (e) { resultDiv.innerHTML = '<div class="error">エラー：' + e.message + '</div>'; }
     }
 
-    function autoMap(header, mappings) {
-      const h = header.toLowerCase();
-      if (h.includes('日付') || h.includes('date')) return 'date';
-      if (h.includes('科目') || h.includes('subject')) return 'subject';
-      if (h.includes('金額') || h.includes('amount') || h.includes('price')) return 'amount';
-      if (h.includes('商品') || h.includes('product')) return 'product';
-      if (h.includes('数量') || h.includes('quantity')) return 'quantity';
-      if (h.includes('部署') || h.includes('department')) return 'department';
-      if (h.includes('店舗') || h.includes('store')) return 'store';
-      if (h.includes('摘要') || h.includes('summary')) return 'summary';
-      if (h.includes('コード') || h.includes('code')) return 'product_code';
-      return '';
-    }
-
-    function confirmMapping() {
-      if (!currentUpload) return;
-      // Calculate with mapping
-      calculateEmissions(currentUpload, currentMapping);
-    }
-
-    function cancelMapping() {
-      document.getElementById('mappingCard').classList.add('hidden');
-      document.getElementById('uploadResult').innerHTML = '';
-      currentUpload = null;
-    }
+    function autoMap(h, mappings) { const l = h.toLowerCase(); if (l.includes('日付')||l.includes('date')) return 'date'; if (l.includes('科目')||l.includes('subject')) return 'subject'; if (l.includes('金額')||l.includes('amount')) return 'amount'; if (l.includes('商品')||l.includes('product')) return 'product'; if (l.includes('数量')||l.includes('quantity')) return 'quantity'; return ''; }
+    function confirmMapping() { if (!currentUpload) return; calculateEmissions(currentUpload, currentMapping); }
+    function cancelMapping() { document.getElementById('mappingCard').classList.add('hidden'); document.getElementById('uploadResult').innerHTML = ''; currentUpload = null; }
 
     async function calculateEmissions(upload, mapping) {
-      const resultDiv = document.getElementById('uploadResult');
-      resultDiv.innerHTML = '<div class="loading">排出量を算出中...</div>';
-      
+      const resultDiv = document.getElementById('uploadResult'); resultDiv.innerHTML = '<div class="loading">排出量を算出中...</div>';
       try {
-        const res = await fetch('/api/v1/uploads', {
-          method: 'POST',
-          body: JSON.stringify({
-            uploadId: upload.uploadId,
-            mapping: mapping,
-            fileType: upload.fileType,
-            rows: upload.sampleData
-          }),
-          headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await res.json();
-        
-        resultDiv.innerHTML = '<div class="success">✅ 排出量算出完了！</div>' +
-          '<div class="result-box"><strong>排出量算出結果:</strong><br>' +
-          '総排出量：<strong>' + data.emissions.total.toFixed(1) + ' kg-CO2e</strong><br>' +
-          'Scope 1: ' + data.emissions.scope1.toFixed(1) + ' kg | ' +
-          'Scope 2: ' + data.emissions.scope2.toFixed(1) + ' kg | ' +
-          'Scope 3: ' + data.emissions.scope3.toFixed(1) + ' kg</div>';
-        
-        document.getElementById('mappingCard').classList.add('hidden');
-        loadDashboard(); loadCalculations(); loadUploads();
+        const res = await fetch('/api/v1/uploads', { method: 'POST', body: JSON.stringify({ uploadId: upload.uploadId, mapping, fileType: upload.fileType, rows: upload.sampleData }), headers: { 'Content-Type': 'application/json' } }), data = await res.json();
+        resultDiv.innerHTML = '<div class="success">✅ 排出量算出完了！</div><div class="result-box"><strong>結果:</strong><br>総排出量：<strong>' + data.emissions.total.toFixed(1) + ' kg-CO2e</strong><br>Scope1: ' + data.emissions.scope1.toFixed(1) + ' | Scope2: ' + data.emissions.scope2.toFixed(1) + ' | Scope3: ' + data.emissions.scope3.toFixed(1) + '</div>';
+        document.getElementById('mappingCard').classList.add('hidden'); loadDashboard(); loadCalculations(); loadUploads();
       } catch (e) { resultDiv.innerHTML = '<div class="error">エラー：' + e.message + '</div>'; }
+    }
+
+    function exportCsv() {
+      const headers = ['ID','日時','ソース','総排出量','Scope1','Scope2','Scope3','状態'];
+      let csv = headers.join(',') + '\n';
+      currentCalcs.forEach(c => { csv += [c.id, c.createdAt||c.created_at, c.sourceType, c.grandTotalKg||c.grand_total_kg, c.scope1, c.scope2, c.scope3, c.status].join(',') + '\n'; });
+      const blob = new Blob(['\ufeff'+csv], { type: 'text/csv;charset=utf-8;' }), url = URL.createObjectURL(blob), link = document.createElement('a');
+      link.href = url; link.download = 'co2_emissions_' + new Date().toISOString().slice(0,10) + '.csv'; link.click();
     }
 
     async function fetchJSON(url) { try { return await (await fetch(url)).json(); } catch(e) { return null; } }
@@ -253,35 +153,13 @@
     function fmtDate(iso) { return new Date(iso).toLocaleString('ja-JP'); }
 
     async function loadDashboard() {
-      const d = await fetchJSON('/api/dashboard/summary');
-      if (!d) return;
-      document.getElementById('summaryStats').innerHTML = 
-        '<div class="stat-card"><div class="val">'+fmt(d.total_emissions_kg)+'</div><div class="lbl">総排出量 (kg-CO2e)</div></div>' +
-        '<div class="stat-card"><div class="val">'+fmt(d.scope1_kg)+'</div><div class="lbl">Scope 1</div></div>' +
-        '<div class="stat-card"><div class="val">'+fmt(d.scope2_kg)+'</div><div class="lbl">Scope 2</div></div>' +
-        '<div class="stat-card"><div class="val">'+fmt(d.scope3_kg)+'</div><div class="lbl">Scope 3</div></div>' +
-        '<div class="stat-card"><div class="val">'+d.total_calculations+'</div><div class="lbl">算出回数</div></div>';
-      const t = d.total_emissions_kg || 1;
-      const p1 = ((d.scope1_kg/t)*100).toFixed(1), p2 = ((d.scope2_kg/t)*100).toFixed(1), p3 = ((d.scope3_kg/t)*100).toFixed(1);
-      document.getElementById('scopeBreakdown').innerHTML = 
-        '<div class="scope-bar"><div class="scope1" style="width:'+p1+'%"></div><div class="scope2" style="width:'+p2+'%"></div><div class="scope3" style="width:'+p3+'%"></div></div>' +
-        '<div class="scope-legend"><span><div class="scope-dot scope1"></div>Scope 1: '+fmt(d.scope1_kg)+'kg ('+p1+'%)</span><span><div class="scope-dot scope2"></div>Scope 2: '+fmt(d.scope2_kg)+'kg ('+p2+'%)</span><span><div class="scope-dot scope3"></div>Scope 3: '+fmt(d.scope3_kg)+'kg ('+p3+'%)</span></div>';
+      const d = await fetchJSON('/api/dashboard/summary'); if (!d) return;
+      document.getElementById('summaryStats').innerHTML = '<div class="stat-card"><div class="val">'+fmt(d.total_emissions_kg)+'</div><div class="lbl">総排出量</div></div><div class="stat-card"><div class="val">'+fmt(d.scope1_kg)+'</div><div class="lbl">Scope1</div></div><div class="stat-card"><div class="val">'+fmt(d.scope2_kg)+'</div><div class="lbl">Scope2</div></div><div class="stat-card"><div class="val">'+fmt(d.scope3_kg)+'</div><div class="lbl">Scope3</div></div><div class="stat-card"><div class="val">'+d.total_calculations+'</div><div class="lbl">算出回数</div></div>';
+      const t = d.total_emissions_kg||1, p1=((d.scope1_kg/t)*100).toFixed(1), p2=((d.scope2_kg/t)*100).toFixed(1), p3=((d.scope3_kg/t)*100).toFixed(1);
+      document.getElementById('scopeBreakdown').innerHTML = '<div class="scope-bar"><div class="scope1" style="width:'+p1+'%"></div><div class="scope2" style="width:'+p2+'%"></div><div class="scope3" style="width:'+p3+'%"></div></div><div class="scope-legend"><span><div class="scope-dot scope1"></div>Scope1: '+fmt(d.scope1_kg)+'kg</span><span><div class="scope-dot scope2"></div>Scope2: '+fmt(d.scope2_kg)+'kg</span><span><div class="scope-dot scope3"></div>Scope3: '+fmt(d.scope3_kg)+'kg</span></div>';
     }
-
-    async function loadCalculations() {
-      const calcs = await fetchJSON('/api/v1/calculations') || [];
-      let h = '<table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th></tr></thead><tbody>';
-      calcs.forEach(c => { h += '<tr><td>'+c.id+'</td><td>'+fmtDate(c.createdAt||c.created_at)+'</td><td>'+c.sourceType+'</td><td>'+fmt(c.grandTotalKg||c.grand_total_kg)+' kg</td><td>S1:'+fmt(c.scope1)+'/S2:'+fmt(c.scope2)+'/S3:'+fmt(c.scope3)+'</td><td><span class="status-badge status-done">'+c.status+'</span></td></tr>'; });
-      document.getElementById('calculationsList').innerHTML = h + '</tbody></table>';
-    }
-
-    async function loadUploads() {
-      const u = await fetchJSON('/api/v1/uploads') || [];
-      let h = '<table><thead><tr><th>ファイル名</th><th>日時</th><th>行数</th><th>状態</th></tr></thead><tbody>';
-      u.forEach(x => { h += '<tr><td>'+x.filename+'</td><td>'+fmtDate(x.uploadedAt||x.uploaded_at)+'</td><td>'+x.rowCount+'</td><td><span class="status-badge status-done">'+x.status+'</span></td></tr>'; });
-      document.getElementById('uploadsList').innerHTML = h + '</tbody></table>';
-    }
-
+    async function loadCalculations() { currentCalcs = await fetchJSON('/api/v1/calculations')||[]; let h = '<table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th></tr></thead><tbody>'; currentCalcs.forEach(c => { h += '<tr><td>'+c.id+'</td><td>'+fmtDate(c.createdAt||c.created_at)+'</td><td>'+c.sourceType+'</td><td>'+fmt(c.grandTotalKg||c.grand_total_kg)+'</td><td>S1:'+fmt(c.scope1)+'/S2:'+fmt(c.scope2)+'/S3:'+fmt(c.scope3)+'</td><td><span class="status-badge status-done">'+c.status+'</span></td></tr>'; }); document.getElementById('calculationsList').innerHTML = h+'</tbody></table>'; }
+    async function loadUploads() { const u = await fetchJSON('/api/v1/uploads')||[]; let h = '<table><thead><tr><th>ファイル名</th><th>日時</th><th>行数</th><th>状態</th></tr></thead><tbody>'; u.forEach(x => { h += '<tr><td>'+x.filename+'</td><td>'+fmtDate(x.uploadedAt||x.uploaded_at)+'</td><td>'+x.rowCount+'</td><td><span class="status-badge status-done">'+x.status+'</span></td></tr>'; }); document.getElementById('uploadsList').innerHTML = h+'</tbody></table>'; }
     loadDashboard(); loadCalculations(); loadUploads();
   </script>
 </body>
