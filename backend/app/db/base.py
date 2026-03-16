@@ -127,12 +127,34 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(String(36), primary_key=True, default=new_uuid)
-    action = Column(String(100), nullable=False)  # "upload_created"|"calculation_started"|...
+    action = Column(String(100), nullable=False)
     resource_type = Column(String(50), nullable=True)
     resource_id = Column(String(36), nullable=True)
     actor_id = Column(String(100), default="system")
     detail = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=func.now())
+
+
+class User(Base):
+    """ユーザー管理テーブル"""
+    __tablename__ = "users"
+
+    id = Column(String(36), primary_key=True, default=new_uuid)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(50), default="user")  # "admin" | "user"
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "email": self.email,
+            "role": self.role,
+            "is_active": bool(self.is_active),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
 
 
 class ProductMaster(Base):

@@ -84,6 +84,8 @@
     <button onclick="showTab('pos')">🛒 POS 計算</button>
     <button onclick="showTab('products')">📦 商品マスタ</button>
     <button onclick="showTab('factors')">📚 排出係数 DB</button>
+    <button onclick="showLogin()" id="loginBtn" style="margin-left:auto;background:#333">🔐 ログイン</button>
+    <button onclick="logout()" id="logoutBtn" style="margin-left:auto;background:#333;display:none">👤 <span id="userEmail"></span></button>
   </div>
 
   <!-- Dashboard Tab -->
@@ -233,6 +235,27 @@
         <div class="form-group"><label>説明</label><input type="text" id="efDesc" placeholder="電源構成に基づく排出係数"></div>
       </div>
       <div class="actions"><button class="btn" onclick="saveFactor()">保存</button><button class="btn btn-secondary" onclick="hideAddFactor()">キャンセル</button></div>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div id="loginModal" class="hidden" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999">
+    <div class="card" style="width:100%;max-width:400px;position:relative">
+      <button onclick="closeLogin()" style="position:absolute;top:10px;right:10px;background:none;border:none;font-size:24px;cursor:pointer">&times;</button>
+      <h2 style="margin-bottom:1.5rem">🔐 ログイン</h2>
+      <div class="form-group">
+        <label>メールアドレス</label>
+        <input type="email" id="loginEmail" placeholder="admin@demo.com" style="width:100%;padding:0.75rem;border:1px solid var(--border);border-radius:6px;font-size:1rem">
+      </div>
+      <div class="form-group">
+        <label>パスワード</label>
+        <input type="password" id="loginPassword" placeholder="demo123" style="width:100%;padding:0.75rem;border:1px solid var(--border);border-radius:6px;font-size:1rem">
+      </div>
+      <div id="loginError" class="error" style="margin-bottom:1rem;display:none"></div>
+      <button onclick="doLogin()" class="btn" style="width:100%;padding:1rem;font-size:1rem">ログイン</button>
+      <p style="margin-top:1rem;font-size:0.75rem;color:#666;text-align:center">
+        デモアカウント：<br>admin@demo.com / demo123
+      </p>
     </div>
   </div>
 
@@ -823,6 +846,65 @@
       }
     }
 
+    // 認証機能
+    function showLogin() { document.getElementById('loginModal').classList.remove('hidden'); }
+    function closeLogin() { document.getElementById('loginModal').classList.add('hidden'); document.getElementById('loginError').style.display='none'; }
+    
+    function checkAuth() {
+      const token = localStorage.getItem('auth_token');
+      const user = localStorage.getItem('auth_user');
+      if (token && user) {
+        document.getElementById('loginBtn').style.display = 'none';
+        document.getElementById('logoutBtn').style.display = 'flex';
+        document.getElementById('userEmail').textContent = JSON.parse(user).email;
+        return true;
+      }
+      document.getElementById('loginBtn').style.display = 'block';
+      document.getElementById('logoutBtn').style.display = 'none';
+      return false;
+    }
+
+    async function doLogin() {
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      const errorDiv = document.getElementById('loginError');
+      
+      if (!email || !password) { errorDiv.textContent = 'メールアドレスとパスワードを入力してください'; errorDiv.style.display = 'block'; return; }
+      
+      try {
+        const res = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({email, password}),
+        });
+        
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'ログインに失敗しました');
+        }
+        
+        const data = await res.json();
+        localStorage.setItem('auth_token', data.access_token);
+        localStorage.setItem('auth_user', JSON.stringify(data.user));
+        
+        closeLogin();
+        checkAuth();
+        alert('ログインしました！');
+      } catch(e) {
+        errorDiv.textContent = e.message;
+        errorDiv.style.display = 'block';
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      checkAuth();
+      alert('ログアウトしました');
+    }
+
+    // 初期化時に認証状態をチェック
+    checkAuth();
     loadDashboard(); loadCalculations();
   </script>
 </body>
