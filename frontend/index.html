@@ -81,6 +81,7 @@
   <div class="nav">
     <button class="active" onclick="showTab('dashboard')">📊 ダッシュボード</button>
     <button onclick="showTab('upload')">📁 アップロード</button>
+    <button onclick="showTab('products')">📦 商品マスタ</button>
     <button onclick="showTab('factors')">📚 排出係数 DB</button>
   </div>
 
@@ -147,6 +148,37 @@
     </div>
   </div>
 
+  <!-- Products Tab -->
+  <div id="tab-products" class="hidden">
+    <div class="card">
+      <div class="actions"><h2>📦 商品マスタ管理</h2><button class="btn btn-secondary btn-sm" onclick="showAddProduct()">➕ 追加</button></div>
+      <p style="color:var(--text-light);font-size:0.75rem;margin-bottom:1rem;">商品別の排出係数マスタ（100 件登録済み）</p>
+      <div class="filter-bar">
+        <input type="text" id="productSearch" placeholder="商品名で検索..." oninput="filterProducts()" style="flex:1;min-width:150px">
+        <select id="productCategory" onchange="filterProducts()"><option value="">全カテゴリ</option><option value="飲料">飲料</option><option value="食品">食品</option><option value="日用品">日用品</option><option value="電子機器">電子機器</option><option value="文具">文具</option><option value="包装資材">包装資材</option></select>
+        <select id="productScope" onchange="filterProducts()"><option value="">全 Scope</option><option value="1">Scope 1</option><option value="2">Scope 2</option><option value="3">Scope 3</option></select>
+      </div>
+      <div class="data-count" id="productCount"></div>
+      <div id="productsList" class="loading">データ読込中...</div>
+    </div>
+
+    <div class="card hidden" id="addProductCard">
+      <h2>➕ 商品を追加</h2>
+      <div class="grid-2">
+        <div class="form-group"><label>商品コード (SKU)*</label><input type="text" id="pmCode" placeholder="BEV001"></div>
+        <div class="form-group"><label>商品名*</label><input type="text" id="pmName" placeholder="ペットボトル飲料 500ml"></div>
+        <div class="form-group"><label>カテゴリ*</label><select id="pmCategory"><option value="飲料">飲料</option><option value="食品">食品</option><option value="日用品">日用品</option><option value="電子機器">電子機器</option><option value="文具">文具</option><option value="包装資材">包装資材</option><option value="その他">その他</option></select></div>
+        <div class="form-group"><label>サブカテゴリ</label><input type="text" id="pmSubcat" placeholder="清涼飲料"></div>
+        <div class="form-group"><label>Scope*</label><select id="pmScope"><option value="1">Scope 1</option><option value="2">Scope 2</option><option value="3" selected>Scope 3</option></select></div>
+        <div class="form-group"><label>排出係数*</label><input type="number" id="pmFactor" step="0.001" placeholder="0.38"></div>
+        <div class="form-group"><label>単位*</label><input type="text" id="pmUnit" placeholder="本"></div>
+        <div class="form-group"><label>データソース</label><input type="text" id="pmSource" placeholder="IDEA v3.4"></div>
+        <div class="form-group" style="grid-column:1/-1"><label>説明</label><input type="text" id="pmDesc" placeholder="詳細説明"></div>
+      </div>
+      <div class="actions"><button class="btn" onclick="saveProduct()">保存</button><button class="btn btn-secondary" onclick="hideAddProduct()">キャンセル</button></div>
+    </div>
+  </div>
+
   <!-- Emission Factors Tab -->
   <div id="tab-factors" class="hidden">
     <div class="card">
@@ -179,12 +211,14 @@
 
   <script>
     let currentUpload = null, currentMapping = {}, currentCalcs = [], currentFactors = [], currentBreakdown = null, filteredFactors = [];
+    let currentProducts = [], filteredProducts = [];
 
     function showTab(tab) {
-      ['dashboard','upload','factors'].forEach(t => { document.getElementById('tab-'+t).classList.add('hidden'); });
+      ['dashboard','upload','products','factors'].forEach(t => { document.getElementById('tab-'+t).classList.add('hidden'); });
       document.getElementById('tab-'+tab).classList.remove('hidden');
-      document.querySelectorAll('.nav button').forEach((b,i) => { b.classList.toggle('active', ['dashboard','upload','factors'][i]===tab); });
+      document.querySelectorAll('.nav button').forEach((b,i) => { b.classList.toggle('active', ['dashboard','upload','products','factors'][i]===tab); });
       if (tab==='dashboard') { loadDashboard(); loadCalculations(); }
+      if (tab==='products') loadProducts(); }
       if (tab==='factors') loadFactors();
     }
 
@@ -577,6 +611,62 @@
     async function fetchJSON(url) { try { return await (await fetch(url)).json(); } catch(e) { return null; } }
     function fmt(n) { return n.toLocaleString('ja-JP', { maximumFractionDigits: 1 }); }
     function fmtDate(iso) { return new Date(iso).toLocaleString('ja-JP'); }
+
+    // 商品マスタ機能
+    async function loadProducts() {
+      try {
+        const res = await fetch('/api/v1/products?limit=500');
+        const data = await res.json();
+        currentProducts = data.products || [];
+        document.getElementById('productCount').innerHTML = '合計 ' + currentProducts.length + ' 件';
+        filterProducts();
+      } catch(e) { document.getElementById('productsList').innerHTML = '<div class="error">エラー：' + e.message + '</div>'; }
+    }
+
+    function filterProducts() {
+      const search = document.getElementById('productSearch').value.toLowerCase();
+      const category = document.getElementById('productCategory').value;
+      const scope = document.getElementById('productScope').value;
+      filteredProducts = currentProducts.filter(p => {
+        const matchSearch = !search || p.product_name.toLowerCase().includes(search) || p.product_code.toLowerCase().includes(search);
+        const matchCat = !category || p.category === category;
+        const matchScope = !scope || p.scope == scope;
+        return matchSearch && matchCat && matchScope;
+      });
+      renderProducts(filteredProducts);
+    }
+
+    function renderProducts(products) {
+      if (products.length === 0) { document.getElementById('productsList').innerHTML = '<div class="loading">該当する商品はありません</div>'; return; }
+      let h = '<div class="table-wrap"><table><thead><tr><th>コード</th><th>商品名</th><th>カテゴリ</th><th>Scope</th><th>排出係数</th><th>単位</th><th>出典</th></tr></thead><tbody>';
+      products.forEach(p => { 
+        const scopeClass = p.scope === 1 ? 's1' : p.scope === 2 ? 's2' : 's3';
+        h += '<tr><td><strong>'+p.product_code+'</strong></td><td>'+p.product_name+'</td><td>'+p.category+(p.subcategory?'<span style="color:#888;font-size:0.7rem"> / '+p.subcategory+'</span>':'')+'</td><td><span class="status-badge '+scopeClass+'">Scope'+p.scope+'</span></td><td>'+p.emission_factor+'</td><td>'+p.emission_unit+'</td><td style="font-size:0.7rem;color:#666">'+(p.data_source||'-')+'</td></tr>'; 
+      });
+      h += '</tbody></table></div>'; document.getElementById('productsList').innerHTML = h;
+    }
+
+    function showAddProduct() { document.getElementById('addProductCard').classList.remove('hidden'); }
+    function hideAddProduct() { document.getElementById('addProductCard').classList.add('hidden'); }
+
+    async function saveProduct() {
+      const product = {
+        product_code: document.getElementById('pmCode').value,
+        product_name: document.getElementById('pmName').value,
+        category: document.getElementById('pmCategory').value,
+        subcategory: document.getElementById('pmSubcat').value,
+        scope: parseInt(document.getElementById('pmScope').value),
+        emission_factor: parseFloat(document.getElementById('pmFactor').value),
+        emission_unit: document.getElementById('pmUnit').value,
+        data_source: document.getElementById('pmSource').value,
+        description: document.getElementById('pmDesc').value,
+      };
+      if (!product.product_code || !product.product_name || !product.category || !product.emission_factor || !product.emission_unit) { alert('必須項目を入力してください'); return; }
+      try { 
+        await fetch('/api/v1/products', { method: 'POST', body: JSON.stringify(product), headers: { 'Content-Type': 'application/json' } }); 
+        hideAddProduct(); loadProducts(); 
+      } catch(e) { alert('エラー：' + e.message); }
+    }
 
     loadDashboard(); loadCalculations();
   </script>

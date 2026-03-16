@@ -133,3 +133,39 @@ class AuditLog(Base):
     actor_id = Column(String(100), default="system")
     detail = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=func.now())
+
+
+class ProductMaster(Base):
+    """商品マスタ - 商品別の排出係数管理"""
+    __tablename__ = "product_master"
+
+    id = Column(String(36), primary_key=True, default=new_uuid)
+    product_code = Column(String(50), unique=True, nullable=False, index=True)  # SKU
+    product_name = Column(String(255), nullable=False, index=True)
+    category = Column(String(50), nullable=False, index=True)  # 飲料/食品/繊維/電子/その他
+    subcategory = Column(String(50), nullable=True)  # 詳細カテゴリ
+    scope = Column(Integer, nullable=False, index=True)  # 1, 2, 3
+    emission_factor = Column(Float, nullable=False)  # kg-CO2e/単位
+    emission_unit = Column(String(50), nullable=False)  # "個"/"円"/"kg"/"L"
+    data_source = Column(String(100), nullable=True)  # "環境省 2023"/"IDEA v3"/"自社計算"
+    description = Column(Text, nullable=True)  # 詳細説明
+    is_active = Column(Integer, default=1)  # 1=有効，0=無効
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "product_code": self.product_code,
+            "product_name": self.product_name,
+            "category": self.category,
+            "subcategory": self.subcategory,
+            "scope": self.scope,
+            "emission_factor": self.emission_factor,
+            "emission_unit": self.emission_unit,
+            "data_source": self.data_source,
+            "description": self.description,
+            "is_active": bool(self.is_active),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
