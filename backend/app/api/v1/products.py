@@ -6,7 +6,6 @@ from datetime import datetime
 
 from app.db.session import SessionLocal
 from app.db.base import ProductMaster
-from app.exceptions import ResourceNotFoundError
 
 router = APIRouter()
 
