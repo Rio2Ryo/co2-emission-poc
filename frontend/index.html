@@ -266,14 +266,22 @@
     let currentUpload = null, currentMapping = {}, currentCalcs = [], currentFactors = [], currentBreakdown = null, filteredFactors = [];
     let currentProducts = [], filteredProducts = [];
 
+    // エラーハンドリング
+    window.onerror = function(msg, url, line) {
+      console.error('JavaScript Error:', msg, 'at line', line);
+      return false;
+    };
+
     function showTab(tab) {
-      ['dashboard','upload','pos','products','factors'].forEach(t => { document.getElementById('tab-'+t).classList.add('hidden'); });
-      document.getElementById('tab-'+tab).classList.remove('hidden');
-      document.querySelectorAll('.nav button').forEach((b,i) => { b.classList.toggle('active', ['dashboard','upload','pos','products','factors'][i]===tab); });
-      if (tab==='dashboard') { loadDashboard(); loadCalculations(); }
-      if (tab==='pos') clearPosRows();
-      if (tab==='products') loadProducts();
-      if (tab==='factors') loadFactors();
+      try {
+        ['dashboard','upload','pos','products','factors'].forEach(t => { document.getElementById('tab-'+t).classList.add('hidden'); });
+        document.getElementById('tab-'+tab).classList.remove('hidden');
+        document.querySelectorAll('.nav button').forEach((b,i) => { b.classList.toggle('active', ['dashboard','upload','pos','products','factors'][i]===tab); });
+        if (tab==='dashboard') { loadDashboard(); loadCalculations(); }
+        if (tab==='pos') clearPosRows();
+        if (tab==='products') loadProducts();
+        if (tab==='factors') loadFactors();
+      } catch(e) { console.error('showTab error:', e); }
     }
 
     async function uploadCSV() {
@@ -919,8 +927,28 @@
     }
 
     // 認証機能
-    function showLogin() { document.getElementById('loginModal').classList.remove('hidden'); document.getElementById('loginModal').style.display = 'flex'; }
-    function closeLogin() { document.getElementById('loginModal').classList.add('hidden'); document.getElementById('loginModal').style.display = 'none'; document.getElementById('loginError').style.display='none'; }
+    function showLogin() {
+      try {
+        const modal = document.getElementById('loginModal');
+        if (modal) {
+          modal.classList.remove('hidden');
+          modal.style.display = 'flex';
+        } else {
+          console.error('loginModal element not found');
+        }
+      } catch(e) { console.error('showLogin error:', e); }
+    }
+    function closeLogin() {
+      try {
+        const modal = document.getElementById('loginModal');
+        if (modal) {
+          modal.classList.add('hidden');
+          modal.style.display = 'none';
+        }
+        const errDiv = document.getElementById('loginError');
+        if (errDiv) errDiv.style.display = 'none';
+      } catch(e) { console.error('closeLogin error:', e); }
+    }
     
     function checkAuth() {
       const token = localStorage.getItem('auth_token');
@@ -973,8 +1001,16 @@
     }
 
     // 初期化時に認証状態をチェック
-    checkAuth();
-    loadDashboard(); loadCalculations();
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        checkAuth();
+        loadDashboard();
+        loadCalculations();
+        console.log('App initialized successfully');
+      } catch(e) {
+        console.error('Initialization error:', e);
+      }
+    });
   </script>
 </body>
 </html>
