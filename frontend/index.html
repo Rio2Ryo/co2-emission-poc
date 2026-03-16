@@ -322,22 +322,27 @@
     }
 
     async function loadDashboard() {
-      try {
-        const d = await (await fetch('/api/dashboard/summary')).json(); if (!d) return;
-        document.getElementById('summaryStats').innerHTML = '<div class="stat-card"><div class="val">'+fmt(d.total_emissions_kg)+'</div><div class="lbl">総排出量</div></div><div class="stat-card"><div class="val">'+fmt(d.scope1_kg)+'</div><div class="lbl">Scope1</div></div><div class="stat-card"><div class="val">'+fmt(d.scope2_kg)+'</div><div class="lbl">Scope2</div></div><div class="stat-card"><div class="val">'+fmt(d.scope3_kg)+'</div><div class="lbl">Scope3</div></div><div class="stat-card"><div class="val">'+d.total_calculations+'</div><div class="lbl">算出回数</div></div>';
-        const t = d.total_emissions_kg||1, p1=((d.scope1_kg/t)*100).toFixed(1), p2=((d.scope2_kg/t)*100).toFixed(1), p3=((d.scope3_kg/t)*100).toFixed(1);
-        document.querySelector('.scope-bar').innerHTML = '<div class="scope1" style="width:'+p1+'%"></div><div class="scope2" style="width:'+p2+'%"></div><div class="scope3" style="width:'+p3+'%"></div>';
-      } catch(e) { console.error(e); }
+      // クライアントサイド：初期状態は何もしない（デモ実行待ち）
+      document.getElementById('summaryStats').innerHTML = 
+        '<div class="stat-card"><div class="val">-</div><div class="lbl">総排出量</div></div>'+
+        '<div class="stat-card"><div class="val">-</div><div class="lbl">Scope 1</div></div>'+
+        '<div class="stat-card"><div class="val">-</div><div class="lbl">Scope 2</div></div>'+
+        '<div class="stat-card"><div class="val">-</div><div class="lbl">Scope 3</div></div>'+
+        '<div class="stat-card"><div class="val">0</div><div class="lbl">算出回数</div></div>';
+      document.querySelector('.scope-bar').innerHTML = '<div class="scope1" style="width:0%"></div><div class="scope2" style="width:0%"></div><div class="scope3" style="width:0%"></div>';
     }
 
     async function loadCalculations() {
-      try {
-        currentCalcs = await (await fetch('/api/v1/calculations')).json() || [];
-        document.getElementById('calcCount').innerHTML = '合計 ' + currentCalcs.length + ' 件';
-        let h = '<div class="table-wrap"><table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th><th>詳細</th><th>PDF</th></tr></thead><tbody>';
-        currentCalcs.forEach(c => { h += '<tr><td>'+c.id.slice(0,8)+'</td><td>'+fmtDate(c.createdAt||c.created_at)+'</td><td>'+c.sourceType+'</td><td>'+fmt(c.grandTotalKg||c.grand_total_kg)+'</td><td>S1:'+fmt(c.scope1)+'/S2:'+fmt(c.scope2)+'/S3:'+fmt(c.scope3)+'</td><td><span class="status-badge status-done">'+c.status+'</span></td><td><button class="btn btn-sm" onclick="showBreakdown(\''+c.id+'\')">表示</button></td><td><button class="btn btn-sm btn-secondary" onclick="openPdf(\''+c.id+'\')">📥</button></td></tr>'; });
-        h += '</tbody></table></div>'; document.getElementById('calculationsList').innerHTML = h;
-      } catch(e) { document.getElementById('calculationsList').innerHTML = '<div class="error">エラー</div>'; }
+      // クライアントサイド：currentCalcs を表示
+      document.getElementById('calcCount').innerHTML = '合計 ' + currentCalcs.length + ' 件';
+      if (currentCalcs.length === 0) {
+        document.getElementById('calculationsList').innerHTML = '<div class="loading">算出履歴はありません。デモ実行またはアップロードしてください。</div>';
+        return;
+      }
+      let h = '<div class="table-wrap"><table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th><th>詳細</th></tr></thead><tbody>';
+      currentCalcs.forEach(c => { h += '<tr><td>'+c.id.slice(0,8)+'</td><td>'+fmtDate(c.createdAt)+'</td><td>'+c.sourceType+'</td><td>'+fmt(c.grandTotalKg)+'</td><td>S1:'+fmt(c.scope1)+'/S2:'+fmt(c.scope2)+'/S3:'+fmt(c.scope3)+'</td><td><span class="status-badge status-done">'+c.status+'</span></td><td><button class="btn btn-sm" onclick="showBreakdown(\''+c.id+'\')">表示</button></td></tr>'; });
+      h += '</tbody></table></div>';
+      document.getElementById('calculationsList').innerHTML = h;
     }
 
     async function showBreakdown(calcId) {
@@ -357,11 +362,18 @@
     }
 
     async function loadFactors() {
-      try {
-        currentFactors = await (await fetch('/api/v1/factors')).json() || [];
-        document.getElementById('factorCount').innerHTML = '合計 ' + currentFactors.length + ' 件';
-        filterFactors();
-      } catch(e) { document.getElementById('factorsList').innerHTML = '<div class="error">エラー</div>'; }
+      // クライアントサイド：ハードコードされた排出係数を表示
+      currentFactors = Object.entries(EMISSION_FACTORS).map(([key, f]) => ({
+        id: key,
+        name: key,
+        description: f.desc,
+        scope: f.scope,
+        rate: f.rate,
+        unit: f.unit,
+        category: f.category,
+      }));
+      document.getElementById('factorCount').innerHTML = '合計 ' + currentFactors.length + ' 件';
+      filterFactors();
     }
 
     function filterFactors() {
