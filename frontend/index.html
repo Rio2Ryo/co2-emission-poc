@@ -279,7 +279,7 @@
       const formData = new FormData(); formData.append('file', fileInput.files[0]); formData.append('fileType', fileType); formData.append('preview', 'true');
       resultDiv.innerHTML = '<div class="loading">アップロード中...</div>';
       try {
-        const res = await fetch('/api/v1/uploads', { method: 'POST', body: formData }), data = await res.json();
+        const res = await fetch(API_BASE + '/api/v1/uploads', { method: 'POST', body: formData }), data = await res.json();
         if (data.error) { resultDiv.innerHTML = '<div class="error">エラー：' + data.error + '</div>'; return; }
         currentUpload = data; currentMapping = {};
         document.getElementById('mappingCard').classList.remove('hidden');
@@ -663,15 +663,20 @@
     function fmt(n) { return n.toLocaleString('ja-JP', { maximumFractionDigits: 1 }); }
     function fmtDate(iso) { return new Date(iso).toLocaleString('ja-JP'); }
 
-    // 商品マスタ機能
+    // 商品マスタ機能（クライアントサイド）
     async function loadProducts() {
-      try {
-        const res = await fetch('/api/v1/products?limit=500');
-        const data = await res.json();
-        currentProducts = data.products || [];
-        document.getElementById('productCount').innerHTML = '合計 ' + currentProducts.length + ' 件';
-        filterProducts();
-      } catch(e) { document.getElementById('productsList').innerHTML = '<div class="error">エラー：' + e.message + '</div>'; }
+      currentProducts = Object.entries(PRODUCT_MASTER).map(([code, p]) => ({
+        product_code: code,
+        product_name: p.name,
+        category: p.category,
+        subcategory: '',
+        scope: p.scope,
+        emission_factor: p.factor,
+        emission_unit: p.unit,
+        data_source: 'IDEA v3.4',
+      }));
+      document.getElementById('productCount').innerHTML = '合計 ' + currentProducts.length + ' 件';
+      filterProducts();
     }
 
     function filterProducts() {
@@ -766,6 +771,44 @@
       POS_SAMPLES.forEach(s => addPosRow(s));
     }
 
+    // 商品マスタ（クライアントサイド）
+    const PRODUCT_MASTER = {
+      'BEV001':{name:'ペットボトル飲料 500ml',category:'飲料',scope:3,factor:0.38,unit:'本'},
+      'BEV002':{name:'缶コーヒー 185ml',category:'飲料',scope:3,factor:0.45,unit:'本'},
+      'BEV003':{name:'牛乳 1L',category:'飲料',scope:3,factor:2.8,unit:'L'},
+      'BEV004':{name:'緑茶 500ml',category:'飲料',scope:3,factor:0.35,unit:'本'},
+      'BEV005':{name:'炭酸水 500ml',category:'飲料',scope:3,factor:0.32,unit:'本'},
+      'BEV006':{name:'果汁100%OJ 1L',category:'飲料',scope:3,factor:1.2,unit:'L'},
+      'BEV007':{name:'ビール 350ml',category:'飲料',scope:3,factor:0.55,unit:'本'},
+      'BEV008':{name:'日本酒 1.8L',category:'飲料',scope:3,factor:2.1,unit:'本'},
+      'BEV009':{name:'ワイン 750ml',category:'飲料',scope:3,factor:1.8,unit:'本'},
+      'BEV010':{name:'スポーツドリンク',category:'飲料',scope:3,factor:0.42,unit:'本'},
+      'FOD001':{name:'弁当',category:'食品',scope:3,factor:2.5,unit:'個'},
+      'FOD002':{name:'おにぎり',category:'食品',scope:3,factor:0.45,unit:'個'},
+      'FOD003':{name:'食パン 6枚切',category:'食品',scope:3,factor:0.85,unit:'袋'},
+      'FOD004':{name:'カップ麺',category:'食品',scope:3,factor:0.65,unit:'個'},
+      'FOD005':{name:'レトルトカレー',category:'食品',scope:3,factor:0.75,unit:'袋'},
+      'FOD010':{name:'ヨーグルト',category:'食品',scope:3,factor:0.35,unit:'個'},
+      'FOD016':{name:'卵 10個',category:'食品',scope:3,factor:0.42,unit:'パック'},
+      'FOD017':{name:'鶏むね肉 1kg',category:'食品',scope:3,factor:1.8,unit:'kg'},
+      'FOD018':{name:'豚バラ肉 1kg',category:'食品',scope:3,factor:3.2,unit:'kg'},
+      'FOD019':{name:'牛もも肉 1kg',category:'食品',scope:3,factor:8.5,unit:'kg'},
+      'FOD022':{name:'米（白米）5kg',category:'食品',scope:3,factor:1.2,unit:'kg'},
+      'DLY001':{name:'トイレットペーパー',category:'日用品',scope:3,factor:0.45,unit:'ロール'},
+      'DLY003':{name:'コピー用紙 A4',category:'日用品',scope:3,factor:1.8,unit:'kg'},
+      'DLY004':{name:'洗剤（洗濯用）',category:'日用品',scope:3,factor:0.85,unit:'kg'},
+      'DLY016':{name:'Tシャツ',category:'日用品',scope:3,factor:4.5,unit:'枚'},
+      'DLY017':{name:'ジーンズ',category:'日用品',scope:3,factor:12.5,unit:'枚'},
+      'ELE001':{name:'スマートフォン',category:'電子機器',scope:3,factor:55.0,unit:'台'},
+      'ELE002':{name:'ノートPC',category:'電子機器',scope:3,factor:180.0,unit:'台'},
+      'ELE009':{name:'テレビ 55インチ',category:'電子機器',scope:3,factor:220.0,unit:'台'},
+      'STA001':{name:'ボールペン',category:'文具',scope:3,factor:0.08,unit:'本'},
+      'STA005':{name:'ノート A5',category:'文具',scope:3,factor:0.25,unit:'冊'},
+      'PKG001':{name:'段ボール箱 S',category:'包装資材',scope:3,factor:0.35,unit:'個'},
+      'PKG002':{name:'段ボール箱 M',category:'包装資材',scope:3,factor:0.55,unit:'個'},
+      'PKG003':{name:'段ボール箱 L',category:'包装資材',scope:3,factor:0.85,unit:'個'},
+    };
+
     async function calculatePos() {
       const rows = [];
       document.querySelectorAll('#posRows tr').forEach(tr => {
@@ -780,20 +823,33 @@
         });
       });
 
-      if (rows.length === 0) { alert('商品コードを至少 1 つ入力してください'); return; }
+      if (rows.length === 0) { alert('商品コードを 1 つ以上入力してください'); return; }
 
       const resultDiv = document.getElementById('posResultCard');
       resultDiv.classList.remove('hidden');
       document.getElementById('posSummary').innerHTML = '<div class="loading">算出中...</div>';
 
-      try {
-        const res = await fetch('/api/v1/pos', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({rows}),
-        });
-        const result = await res.json();
-        currentPosJobId = result.job_id;
+      // クライアントサイドで計算
+      const result = {job_id:'demo-pos-'+Date.now(), rows:[], scope_summary:{scope1:0,scope2:0,scope3:0,grand_total:0}, category_summary:{}, calculated_count:0, unclassified_count:0, row_count:rows.length};
+      
+      rows.forEach(row => {
+        const product = PRODUCT_MASTER[row.product_code];
+        if (product) {
+          const emission = product.factor * row.quantity;
+          result.rows.push({product_code:row.product_code, product_name:product.name, quantity:row.quantity, emission_factor:product.factor, scope:product.scope, emission:emission, status:'calculated'});
+          result.scope_summary['scope'+product.scope] += emission;
+          result.scope_summary.grand_total += emission;
+          if (!result.category_summary[product.category]) result.category_summary[product.category] = {total:0, count:0, scope:product.scope};
+          result.category_summary[product.category].total += emission;
+          result.category_summary[product.category].count += 1;
+          result.calculated_count++;
+        } else {
+          result.rows.push({product_code:row.product_code, product_name:row.product_name||'不明', quantity:row.quantity, emission_factor:null, scope:null, emission:0, status:'unclassified', error:'商品コード '+row.product_code+' がマスタにありません'});
+          result.unclassified_count++;
+        }
+      });
+
+      currentPosJobId = result.job_id;
 
         // Scope 集計表示
         const ss = result.scope_summary;
@@ -864,6 +920,13 @@
       return false;
     }
 
+    // デモアカウント（クライアントサイド認証）
+    const DEMO_ACCOUNTS = {
+      'admin@demo.com': {password:'demo123', role:'admin', email:'admin@demo.com'},
+      'yakon@demo.com': {password:'demo123', role:'admin', email:'yakon@demo.com'},
+      'user@demo.com':  {password:'demo123', role:'user',  email:'user@demo.com'},
+    };
+
     async function doLogin() {
       const email = document.getElementById('loginEmail').value;
       const password = document.getElementById('loginPassword').value;
@@ -871,29 +934,19 @@
       
       if (!email || !password) { errorDiv.textContent = 'メールアドレスとパスワードを入力してください'; errorDiv.style.display = 'block'; return; }
       
-      try {
-        const res = await fetch('/api/v1/auth/login', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({email, password}),
-        });
-        
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.detail || 'ログインに失敗しました');
-        }
-        
-        const data = await res.json();
-        localStorage.setItem('auth_token', data.access_token);
-        localStorage.setItem('auth_user', JSON.stringify(data.user));
-        
-        closeLogin();
-        checkAuth();
-        alert('ログインしました！');
-      } catch(e) {
-        errorDiv.textContent = e.message;
+      const account = DEMO_ACCOUNTS[email];
+      if (!account || account.password !== password) {
+        errorDiv.textContent = 'メールアドレスまたはパスワードが正しくありません';
         errorDiv.style.display = 'block';
+        return;
       }
+      
+      localStorage.setItem('auth_token', 'demo-token-' + Date.now());
+      localStorage.setItem('auth_user', JSON.stringify({email: account.email, role: account.role}));
+      
+      closeLogin();
+      checkAuth();
+      alert('ログインしました！ (' + account.role + ')');
     }
 
     function logout() {
