@@ -80,7 +80,8 @@
 
   <div class="nav">
     <button class="active" onclick="showTab('dashboard')">📊 ダッシュボード</button>
-    <button onclick="showTab('upload')">📁 アップロード</button>
+    <button onclick="showTab('upload')">📁 会計アップロード</button>
+    <button onclick="showTab('pos')">🛒 POS 計算</button>
     <button onclick="showTab('products')">📦 商品マスタ</button>
     <button onclick="showTab('factors')">📚 排出係数 DB</button>
   </div>
@@ -145,6 +146,32 @@
       <div id="mappingGrid" class="mapping-grid"></div>
       <div class="preview-box" id="dataPreview"></div>
       <div class="actions"><button class="btn" onclick="confirmMapping()">マッピングを保存して算出</button><button class="btn btn-secondary" onclick="cancelMapping()">キャンセル</button></div>
+    </div>
+  </div>
+
+  <!-- POS Tab -->
+  <div id="tab-pos" class="hidden">
+    <div class="card">
+      <div class="actions"><h2>🛒 POS データ CO2 算出</h2><button class="btn btn-sm" onclick="loadPosSample()">📋 サンプル読込</button></div>
+      <p style="color:var(--text-light);font-size:0.75rem;margin-bottom:1rem;">商品コードと数量を入力すると、商品マスタから排出係数を自動参照して CO2 を算出します</p>
+      
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>商品コード</th><th>商品名</th><th>数量</th><th>単価</th><th>店舗</th><th>削除</th></tr></thead>
+          <tbody id="posRows"></tbody>
+        </table>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="addPosRow()" style="margin-top:0.5rem">➕ 行追加</button>
+      <button class="btn" onclick="calculatePos()" style="margin-top:1rem">🚀 CO2 算出</button>
+    </div>
+
+    <div class="card hidden" id="posResultCard">
+      <h2>📊 算出結果</h2>
+      <div id="posSummary" class="stats" style="margin:1rem 0"></div>
+      <h3 style="font-size:0.9rem;margin:1rem 0 0.5rem">📦 カテゴリ別集計</h3>
+      <div id="posCategorySummary" class="table-wrap"></div>
+      <h3 style="font-size:0.9rem;margin:1rem 0 0.5rem">📋 行別詳細</h3>
+      <div id="posRowDetails" class="table-wrap"></div>
     </div>
   </div>
 
@@ -214,11 +241,12 @@
     let currentProducts = [], filteredProducts = [];
 
     function showTab(tab) {
-      ['dashboard','upload','products','factors'].forEach(t => { document.getElementById('tab-'+t).classList.add('hidden'); });
+      ['dashboard','upload','pos','products','factors'].forEach(t => { document.getElementById('tab-'+t).classList.add('hidden'); });
       document.getElementById('tab-'+tab).classList.remove('hidden');
-      document.querySelectorAll('.nav button').forEach((b,i) => { b.classList.toggle('active', ['dashboard','upload','products','factors'][i]===tab); });
+      document.querySelectorAll('.nav button').forEach((b,i) => { b.classList.toggle('active', ['dashboard','upload','pos','products','factors'][i]===tab); });
       if (tab==='dashboard') { loadDashboard(); loadCalculations(); }
-      if (tab==='products') loadProducts(); }
+      if (tab==='pos') clearPosRows();
+      if (tab==='products') loadProducts();
       if (tab==='factors') loadFactors();
     }
 
@@ -666,6 +694,116 @@
         await fetch('/api/v1/products', { method: 'POST', body: JSON.stringify(product), headers: { 'Content-Type': 'application/json' } }); 
         hideAddProduct(); loadProducts(); 
       } catch(e) { alert('エラー：' + e.message); }
+    }
+
+    // POS 計算機能
+    let posRowCount = 0;
+    const POS_SAMPLES = [
+      {code:'BEV001',name:'ペットボトル飲料 500ml',qty:10,price:150,store:'新宿店'},
+      {code:'BEV002',name:'缶コーヒー 185ml',qty:5,price:120,store:'新宿店'},
+      {code:'FOD001',name:'弁当',qty:8,price:450,store:'新宿店'},
+      {code:'FOD002',name:'おにぎり',qty:20,price:130,store:'渋谷店'},
+      {code:'BEV007',name:'ビール 350ml',qty:12,price:280,store:'新宿店'},
+      {code:'DLY001',name:'トイレットペーパー',qty:6,price:180,store:'渋谷店'},
+      {code:'DLY016',name:'T シャツ',qty:3,price:2500,store:'新宿店'},
+      {code:'ELE001',name:'スマートフォン',qty:2,price:80000,store:'新宿店'},
+      {code:'STA001',name:'ボールペン',qty:50,price:120,store:'渋谷店'},
+      {code:'PKG002',name:'段ボール箱 M',qty:20,price:80,store:'物流センター'},
+    ];
+
+    function clearPosRows() {
+      posRowCount = 0;
+      document.getElementById('posRows').innerHTML = '';
+      document.getElementById('posResultCard').classList.add('hidden');
+    }
+
+    function addPosRow(data = {}) {
+      const rowId = posRowCount++;
+      const tbody = document.getElementById('posRows');
+      const tr = document.createElement('tr');
+      tr.id = `pos-row-${rowId}`;
+      tr.innerHTML = `
+        <td><input type="text" value="${data.code||''}" placeholder="BEV001" class="pos-code" style="width:100px;font-size:0.75rem"></td>
+        <td><input type="text" value="${data.name||''}" placeholder="商品名" class="pos-name" style="width:150px;font-size:0.75rem"></td>
+        <td><input type="number" value="${data.qty||1}" min="1" class="pos-qty" style="width:60px;font-size:0.75rem"></td>
+        <td><input type="number" value="${data.price||0}" min="0" class="pos-price" style="width:70px;font-size:0.75rem"></td>
+        <td><input type="text" value="${data.store||''}" placeholder="店舗" class="pos-store" style="width:80px;font-size:0.75rem"></td>
+        <td><button class="btn btn-sm btn-secondary" onclick="removePosRow(${rowId})">削除</button></td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    function removePosRow(rowId) {
+      const row = document.getElementById(`pos-row-${rowId}`);
+      if (row) row.remove();
+    }
+
+    function loadPosSample() {
+      clearPosRows();
+      POS_SAMPLES.forEach(s => addPosRow(s));
+    }
+
+    async function calculatePos() {
+      const rows = [];
+      document.querySelectorAll('#posRows tr').forEach(tr => {
+        const code = tr.querySelector('.pos-code').value.trim();
+        if (!code) return;
+        rows.push({
+          product_code: code,
+          product_name: tr.querySelector('.pos-name').value.trim(),
+          quantity: parseFloat(tr.querySelector('.pos-qty').value) || 1,
+          unit_price: parseFloat(tr.querySelector('.pos-price').value) || 0,
+          store: tr.querySelector('.pos-store').value.trim(),
+        });
+      });
+
+      if (rows.length === 0) { alert('商品コードを至少 1 つ入力してください'); return; }
+
+      const resultDiv = document.getElementById('posResultCard');
+      resultDiv.classList.remove('hidden');
+      document.getElementById('posSummary').innerHTML = '<div class="loading">算出中...</div>';
+
+      try {
+        const res = await fetch('/api/v1/pos', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({rows}),
+        });
+        const result = await res.json();
+
+        // Scope 集計表示
+        const ss = result.scope_summary;
+        document.getElementById('posSummary').innerHTML = 
+          '<div class="stat-card"><div class="val">'+fmt(ss.grand_total)+'</div><div class="lbl">総排出量</div></div>'+
+          '<div class="stat-card"><div class="val" style="color:var(--scope1)">'+fmt(ss.scope1)+'</div><div class="lbl">Scope1</div></div>'+
+          '<div class="stat-card"><div class="val" style="color:var(--scope2)">'+fmt(ss.scope2)+'</div><div class="lbl">Scope2</div></div>'+
+          '<div class="stat-card"><div class="val" style="color:var(--scope3)">'+fmt(ss.scope3)+'</div><div class="lbl">Scope3</div></div>'+
+          '<div class="stat-card"><div class="val">'+result.calculated_count+'</div><div class="lbl">分類済</div></div>'+
+          '<div class="stat-card"><div class="val">'+result.unclassified_count+'</div><div class="lbl">未分類</div></div>';
+
+        // カテゴリ別集計
+        let catHtml = '<div class="table-wrap"><table><thead><tr><th>カテゴリ</th><th>排出量 (kg-CO2e)</th><th>件数</th></tr></thead><tbody>';
+        Object.entries(result.category_summary).sort((a,b) => b[1].total - a[1].total).forEach(([cat, data]) => {
+          catHtml += `<tr><td><strong>${cat}</strong></td><td>${fmt(data.total)}</td><td>${data.count}</td></tr>`;
+        });
+        catHtml += '<tr style="background:#f0f0f0"><td><strong>合計</strong></td><td><strong>'+fmt(ss.grand_total)+'</strong></td><td>'+result.row_count+'</td></tr>';
+        catHtml += '</tbody></table></div>';
+        document.getElementById('posCategorySummary').innerHTML = catHtml;
+
+        // 行別詳細
+        let rowHtml = '<div class="table-wrap"><table><thead><tr><th>商品コード</th><th>商品名</th><th>数量</th><th>排出係数</th><th>Scope</th><th>排出量</th><th>状態</th></tr></thead><tbody>';
+        result.rows.forEach(r => {
+          const status = r.status === 'calculated' ? '<span class="status-badge status-done">✅</span>' : '<span class="status-badge" style="background:#dc2626;color:#fff">❌</span>';
+          const scopeBadge = r.scope ? `<span class="status-badge s${r.scope}">S${r.scope}</span>` : '-';
+          rowHtml += `<tr><td>${r.product_code}</td><td>${r.product_name||'-'}</td><td>${r.quantity}</td><td>${r.emission_factor||'-'}</td><td>${scopeBadge}</td><td><strong>${r.emission.toFixed(3)}</strong></td><td>${status}${r.error?'<br><span style="font-size:0.65rem;color:#dc2626">'+r.error+'</span>':''}</td></tr>`;
+        });
+        rowHtml += '</tbody></table></div>';
+        document.getElementById('posRowDetails').innerHTML = rowHtml;
+
+        resultDiv.scrollIntoView({behavior:'smooth'});
+      } catch(e) {
+        document.getElementById('posSummary').innerHTML = '<div class="error">エラー：'+e.message+'</div>';
+      }
     }
 
     loadDashboard(); loadCalculations();
