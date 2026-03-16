@@ -308,8 +308,8 @@
       try {
         currentCalcs = await (await fetch('/api/v1/calculations')).json() || [];
         document.getElementById('calcCount').innerHTML = '合計 ' + currentCalcs.length + ' 件';
-        let h = '<div class="table-wrap"><table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th><th>詳細</th></tr></thead><tbody>';
-        currentCalcs.forEach(c => { h += '<tr><td>'+c.id+'</td><td>'+fmtDate(c.createdAt||c.created_at)+'</td><td>'+c.sourceType+'</td><td>'+fmt(c.grandTotalKg||c.grand_total_kg)+'</td><td>S1:'+fmt(c.scope1)+'/S2:'+fmt(c.scope2)+'/S3:'+fmt(c.scope3)+'</td><td><span class="status-badge status-done">'+c.status+'</span></td><td><button class="btn btn-sm" onclick="showBreakdown(\''+c.id+'\')">表示</button></td></tr>'; });
+        let h = '<div class="table-wrap"><table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th><th>詳細</th><th>PDF</th></tr></thead><tbody>';
+        currentCalcs.forEach(c => { h += '<tr><td>'+c.id.slice(0,8)+'</td><td>'+fmtDate(c.createdAt||c.created_at)+'</td><td>'+c.sourceType+'</td><td>'+fmt(c.grandTotalKg||c.grand_total_kg)+'</td><td>S1:'+fmt(c.scope1)+'/S2:'+fmt(c.scope2)+'/S3:'+fmt(c.scope3)+'</td><td><span class="status-badge status-done">'+c.status+'</span></td><td><button class="btn btn-sm" onclick="showBreakdown(\''+c.id+'\')">表示</button></td><td><button class="btn btn-sm btn-secondary" onclick="openPdf(\''+c.id+'\')">📥</button></td></tr>'; });
         h += '</tbody></table></div>'; document.getElementById('calculationsList').innerHTML = h;
       } catch(e) { document.getElementById('calculationsList').innerHTML = '<div class="error">エラー</div>'; }
     }
@@ -770,6 +770,7 @@
           body: JSON.stringify({rows}),
         });
         const result = await res.json();
+        currentPosJobId = result.job_id;
 
         // Scope 集計表示
         const ss = result.scope_summary;
@@ -801,8 +802,24 @@
         document.getElementById('posRowDetails').innerHTML = rowHtml;
 
         resultDiv.scrollIntoView({behavior:'smooth'});
+        
+        // PDF ボタン追加
+        document.getElementById('posSummary').innerHTML += '<div class="stat-card" style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:10px"><button class="btn" onclick="openPosPdf()">📥 PDF ダウンロード</button></div>';
       } catch(e) {
         document.getElementById('posSummary').innerHTML = '<div class="error">エラー：'+e.message+'</div>';
+      }
+    }
+
+    function openPdf(jobId) {
+      window.open('/api/v1/pdf/jobs/'+jobId+'/pdf', '_blank');
+    }
+
+    let currentPosJobId = null;
+    function openPosPdf() {
+      if (currentPosJobId) {
+        window.open('/api/v1/pdf/jobs/'+currentPosJobId+'/pdf', '_blank');
+      } else {
+        alert('まず CO2 を算出してください');
       }
     }
 
