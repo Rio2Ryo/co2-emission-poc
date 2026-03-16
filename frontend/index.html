@@ -840,6 +840,7 @@
 
       if (rows.length === 0) { alert('商品コードを 1 つ以上入力してください'); return; }
 
+      try {
       const resultDiv = document.getElementById('posResultCard');
       resultDiv.classList.remove('hidden');
       document.getElementById('posSummary').innerHTML = '<div class="loading">算出中...</div>';
