@@ -287,22 +287,26 @@
     async function uploadCSV() {
       const fileInput = document.getElementById('csvFile'), fileType = document.getElementById('fileType').value, resultDiv = document.getElementById('uploadResult');
       if (!fileInput.files[0]) { resultDiv.innerHTML = '<div class="error">ファイルを選択してください</div>'; return; }
-      const formData = new FormData(); formData.append('file', fileInput.files[0]); formData.append('fileType', fileType); formData.append('preview', 'true');
-      resultDiv.innerHTML = '<div class="loading">アップロード中...</div>';
+      resultDiv.innerHTML = '<div class="loading">読込中...</div>';
       try {
-        const res = await fetch(API_BASE + '/api/v1/uploads', { method: 'POST', body: formData }), data = await res.json();
-        if (data.error) { resultDiv.innerHTML = '<div class="error">エラー：' + data.error + '</div>'; return; }
-        currentUpload = data; currentMapping = {};
+        const text = await fileInput.files[0].text();
+        const lines = text.trim().split(/\r?\n/);
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const parseRow = line => { const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, '')); const obj = {}; headers.forEach((h, i) => { obj[h] = vals[i] || ''; }); return obj; };
+        const allData = lines.slice(1).filter(l => l.trim()).map(parseRow);
+        const sampleData = allData.slice(0, 5);
+        currentUpload = { headers, sampleData, allData, fileType, uploadId: 'local-' + Date.now() };
+        currentMapping = {};
         document.getElementById('mappingCard').classList.remove('hidden');
-        resultDiv.innerHTML = '<div class="success">✅ アップロード完了！列マッピングを設定してください</div>';
+        resultDiv.innerHTML = '<div class="success">✅ アップロード完了（' + allData.length + ' 行）！列マッピングを設定してください</div>';
         const mappings = { accounting: [{key:'date',label:'日付'},{key:'subject',label:'科目'},{key:'amount',label:'金額'},{key:'summary',label:'摘要'},{key:'department',label:'部署'}], sales: [{key:'date',label:'日付'},{key:'product',label:'商品名'},{key:'quantity',label:'数量'},{key:'unit_price',label:'単価'},{key:'store',label:'店舗'}], pos: [{key:'datetime',label:'取引日時'},{key:'product_code',label:'商品コード'},{key:'product_name',label:'商品名'},{key:'quantity',label:'数量'},{key:'amount',label:'金額'},{key:'store_code',label:'店舗コード'}] };
         const m = mappings[fileType] || mappings.accounting;
         let gridHtml = '';
-        data.headers.forEach(h => { const options = m.map(x => `<option value="${x.key}">${x.label}</option>`).join(''); const auto = autoMap(h); currentMapping[h] = auto; gridHtml += `<div class="mapping-item"><label>${h}</label><select onchange="currentMapping['${h}']=this.value"><option value="">-- 無視 --</option>${options}</select></div>`; });
+        headers.forEach(h => { const options = m.map(x => `<option value="${x.key}">${x.label}</option>`).join(''); const auto = autoMap(h); currentMapping[h] = auto; gridHtml += `<div class="mapping-item"><label>${h}</label><select onchange="currentMapping['${h}']=this.value"><option value="">-- 無視 --</option>${options}</select></div>`; });
         document.getElementById('mappingGrid').innerHTML = gridHtml;
-        setTimeout(() => { document.querySelectorAll('#mappingGrid select').forEach((sel, i) => { sel.value = currentMapping[data.headers[i]] || ''; }); }, 100);
-        let previewHtml = '<strong>データプレビュー:</strong><div class="table-wrap"><table><thead><tr>'; data.headers.forEach(h => previewHtml += `<th>${h}</th>`); previewHtml += '</tr></thead><tbody>';
-        data.sampleData.slice(0, 5).forEach(row => { previewHtml += '<tr>'; data.headers.forEach(h => previewHtml += `<td>${row[h]||''}</td>`); previewHtml += '</tr>'; });
+        setTimeout(() => { document.querySelectorAll('#mappingGrid select').forEach((sel, i) => { sel.value = currentMapping[headers[i]] || ''; }); }, 100);
+        let previewHtml = '<strong>データプレビュー:</strong><div class="table-wrap"><table><thead><tr>'; headers.forEach(h => previewHtml += `<th>${h}</th>`); previewHtml += '</tr></thead><tbody>';
+        sampleData.forEach(row => { previewHtml += '<tr>'; headers.forEach(h => previewHtml += `<td>${row[h]||''}</td>`); previewHtml += '</tr>'; });
         previewHtml += '</tbody></table></div>'; document.getElementById('dataPreview').innerHTML = previewHtml;
       } catch (e) { resultDiv.innerHTML = '<div class="error">エラー：' + e.message + '</div>'; }
     }
@@ -311,12 +315,28 @@
     function confirmMapping() { if (!currentUpload) return; calculateEmissions(currentUpload, currentMapping); }
     function cancelMapping() { document.getElementById('mappingCard').classList.add('hidden'); document.getElementById('uploadResult').innerHTML = ''; currentUpload = null; }
 
-    async function calculateEmissions(upload, mapping) {
+    function calculateEmissions(upload, mapping) {
       const resultDiv = document.getElementById('uploadResult'); resultDiv.innerHTML = '<div class="loading">排出量を算出中...</div>';
       try {
-        const res = await fetch('/api/v1/uploads', { method: 'POST', body: JSON.stringify({ uploadId: upload.uploadId, mapping, fileType: upload.fileType, rows: upload.sampleData }), headers: { 'Content-Type': 'application/json' } }), data = await res.json();
-        currentBreakdown = data.breakdown;
-        resultDiv.innerHTML = '<div class="success">✅ 排出量算出完了！</div><div class="result-box"><strong>結果:</strong><br>総排出量：<strong>' + data.emissions.total.toFixed(1) + ' kg-CO2e</strong><br>Scope1: ' + data.emissions.scope1.toFixed(1) + ' | Scope2: ' + data.emissions.scope2.toFixed(1) + ' | Scope3: ' + data.emissions.scope3.toFixed(1) + '</div>';
+        const rows = upload.allData || upload.sampleData || [];
+        const subjectKey = Object.keys(mapping).find(k => mapping[k] === 'subject');
+        const amountKey = Object.keys(mapping).find(k => mapping[k] === 'amount');
+        const dateKey = Object.keys(mapping).find(k => mapping[k] === 'date');
+        const breakdown = rows.map((row, i) => {
+          const subject = subjectKey ? (row[subjectKey] || '') : '';
+          const amount = amountKey ? (parseFloat(row[amountKey]) || 0) : 0;
+          const date = dateKey ? (row[dateKey] || '') : '';
+          const factor = EMISSION_FACTORS[subject] || null;
+          const emission = factor ? amount * factor.rate : 0;
+          return { row: i+1, date, subject, amount, factor: factor ? factor.rate : 0, factorName: factor ? factor.desc : '未分類', scope: factor ? factor.scope : 0, emission, status: factor ? 'calculated' : 'unclassified' };
+        });
+        const scope1 = breakdown.filter(r => r.scope===1).reduce((s,r) => s+r.emission, 0);
+        const scope2 = breakdown.filter(r => r.scope===2).reduce((s,r) => s+r.emission, 0);
+        const scope3 = breakdown.filter(r => r.scope===3).reduce((s,r) => s+r.emission, 0);
+        const total = scope1 + scope2 + scope3;
+        const calc = { id: 'upload-'+Date.now(), createdAt: new Date().toISOString(), sourceType: (upload.fileType||'accounting')+' (upload)', grandTotalKg: total, scope1, scope2, scope3, status: 'completed', breakdown };
+        currentCalcs.unshift(calc);
+        resultDiv.innerHTML = '<div class="success">✅ 排出量算出完了！</div><div class="result-box"><strong>結果:</strong><br>総排出量：<strong>' + total.toFixed(1) + ' kg-CO2e</strong><br>Scope1: ' + scope1.toFixed(1) + ' | Scope2: ' + scope2.toFixed(1) + ' | Scope3: ' + scope3.toFixed(1) + '</div>';
         document.getElementById('mappingCard').classList.add('hidden'); showTab('dashboard'); loadDashboard(); loadCalculations();
       } catch (e) { resultDiv.innerHTML = '<div class="error">エラー：' + e.message + '</div>'; }
     }
@@ -330,55 +350,127 @@
     }
 
     async function loadDashboard() {
-      // クライアントサイド：初期状態は何もしない（デモ実行待ち）
-      document.getElementById('summaryStats').innerHTML = 
+      const statsDiv = document.getElementById('summaryStats');
+      const barDiv = document.querySelector('.scope-bar');
+      try {
+        const data = await fetchJSON('/api/v1/dashboard/summary');
+        if (data && data.total_emissions_kg !== undefined) {
+          const total = data.total_emissions_kg, s1 = data.scope1_total, s2 = data.scope2_total, s3 = data.scope3_total;
+          statsDiv.innerHTML =
+            '<div class="stat-card"><div class="val">'+fmt(total)+'</div><div class="lbl">総排出量 (kg-CO2e)</div></div>'+
+            '<div class="stat-card"><div class="val" style="color:var(--scope1)">'+fmt(s1)+'</div><div class="lbl">Scope 1</div></div>'+
+            '<div class="stat-card"><div class="val" style="color:var(--scope2)">'+fmt(s2)+'</div><div class="lbl">Scope 2</div></div>'+
+            '<div class="stat-card"><div class="val" style="color:var(--scope3)">'+fmt(s3)+'</div><div class="lbl">Scope 3</div></div>'+
+            '<div class="stat-card"><div class="val">'+data.completed_jobs+'</div><div class="lbl">算出回数</div></div>';
+          if (total > 0) {
+            const p1 = ((s1/total)*100).toFixed(1), p2 = ((s2/total)*100).toFixed(1), p3 = ((s3/total)*100).toFixed(1);
+            barDiv.innerHTML = '<div class="scope1" style="width:'+p1+'%"></div><div class="scope2" style="width:'+p2+'%"></div><div class="scope3" style="width:'+p3+'%"></div>';
+          }
+          return;
+        }
+      } catch(e) { console.warn('Dashboard API unavailable, using client-side data:', e); }
+      // クライアントサイドデータから集計
+      if (currentCalcs.length > 0) {
+        const total = currentCalcs.reduce((s,c) => s+(c.grandTotalKg||0), 0);
+        const s1 = currentCalcs.reduce((s,c) => s+(c.scope1||0), 0);
+        const s2 = currentCalcs.reduce((s,c) => s+(c.scope2||0), 0);
+        const s3 = currentCalcs.reduce((s,c) => s+(c.scope3||0), 0);
+        statsDiv.innerHTML =
+          '<div class="stat-card"><div class="val">'+fmt(total)+'</div><div class="lbl">総排出量 (kg-CO2e)</div></div>'+
+          '<div class="stat-card"><div class="val" style="color:var(--scope1)">'+fmt(s1)+'</div><div class="lbl">Scope 1</div></div>'+
+          '<div class="stat-card"><div class="val" style="color:var(--scope2)">'+fmt(s2)+'</div><div class="lbl">Scope 2</div></div>'+
+          '<div class="stat-card"><div class="val" style="color:var(--scope3)">'+fmt(s3)+'</div><div class="lbl">Scope 3</div></div>'+
+          '<div class="stat-card"><div class="val">'+currentCalcs.length+'</div><div class="lbl">算出回数</div></div>';
+        if (total > 0) {
+          const p1 = ((s1/total)*100).toFixed(1), p2 = ((s2/total)*100).toFixed(1), p3 = ((s3/total)*100).toFixed(1);
+          barDiv.innerHTML = '<div class="scope1" style="width:'+p1+'%"></div><div class="scope2" style="width:'+p2+'%"></div><div class="scope3" style="width:'+p3+'%"></div>';
+        }
+        return;
+      }
+      statsDiv.innerHTML =
         '<div class="stat-card"><div class="val">-</div><div class="lbl">総排出量</div></div>'+
         '<div class="stat-card"><div class="val">-</div><div class="lbl">Scope 1</div></div>'+
         '<div class="stat-card"><div class="val">-</div><div class="lbl">Scope 2</div></div>'+
         '<div class="stat-card"><div class="val">-</div><div class="lbl">Scope 3</div></div>'+
         '<div class="stat-card"><div class="val">0</div><div class="lbl">算出回数</div></div>';
-      document.querySelector('.scope-bar').innerHTML = '<div class="scope1" style="width:0%"></div><div class="scope2" style="width:0%"></div><div class="scope3" style="width:0%"></div>';
+      barDiv.innerHTML = '<div class="scope1" style="width:0%"></div><div class="scope2" style="width:0%"></div><div class="scope3" style="width:0%"></div>';
     }
 
     async function loadCalculations() {
-      // クライアントサイド：currentCalcs を表示
+      try {
+        const data = await fetchJSON('/api/v1/calculations');
+        if (data && data.jobs) {
+          currentCalcs = data.jobs.map(j => ({
+            id: j.job_id,
+            createdAt: j.created_at,
+            sourceType: j.emission_factor_version || 'accounting',
+            grandTotalKg: j.grand_total || 0,
+            scope1: 0, scope2: 0, scope3: 0,
+            status: j.status,
+          }));
+        }
+      } catch(e) { console.warn('Calculations API unavailable:', e); }
       document.getElementById('calcCount').innerHTML = '合計 ' + currentCalcs.length + ' 件';
       if (currentCalcs.length === 0) {
         document.getElementById('calculationsList').innerHTML = '<div class="loading">算出履歴はありません。デモ実行またはアップロードしてください。</div>';
         return;
       }
-      let h = '<div class="table-wrap"><table><thead><tr><th>ID</th><th>日時</th><th>ソース</th><th>総排出量</th><th>内訳</th><th>状態</th><th>詳細</th></tr></thead><tbody>';
-      currentCalcs.forEach(c => { h += '<tr><td>'+c.id.slice(0,8)+'</td><td>'+fmtDate(c.createdAt)+'</td><td>'+c.sourceType+'</td><td>'+fmt(c.grandTotalKg)+'</td><td>S1:'+fmt(c.scope1)+'/S2:'+fmt(c.scope2)+'/S3:'+fmt(c.scope3)+'</td><td><span class="status-badge status-done">'+c.status+'</span></td><td><button class="btn btn-sm" onclick="showBreakdown(\''+c.id+'\')">表示</button></td></tr>'; });
+      let h = '<div class="table-wrap"><table><thead><tr><th>ID</th><th>日時</th><th>排出係数</th><th>総排出量 (kg-CO2e)</th><th>状態</th><th>詳細</th></tr></thead><tbody>';
+      currentCalcs.forEach(c => { h += '<tr><td>'+c.id.slice(0,8)+'</td><td>'+fmtDate(c.createdAt)+'</td><td>'+c.sourceType+'</td><td><strong>'+fmt(c.grandTotalKg)+'</strong></td><td><span class="status-badge status-done">'+c.status+'</span></td><td><button class="btn btn-sm" onclick="showBreakdown(\''+c.id+'\')">表示</button></td></tr>'; });
       h += '</tbody></table></div>';
       document.getElementById('calculationsList').innerHTML = h;
     }
 
     async function showBreakdown(calcId) {
+      document.getElementById('breakdownList').innerHTML = '<div class="loading">読込中...</div>';
+      try {
+        const data = await fetchJSON('/api/v1/calculations/' + calcId + '/results');
+        if (data && data.rows) {
+          const rows = data.rows, summary = data.summary || {};
+          document.getElementById('breakdownCount').innerHTML = '合計 ' + rows.length + ' 行';
+          let h = '<div class="table-wrap"><table><thead><tr><th>行</th><th>活動タイプ</th><th>Scope</th><th>排出量 (kg-CO2e)</th><th>状態</th></tr></thead><tbody>';
+          rows.forEach(r => {
+            const sc = r.scope === 1 ? 's1' : r.scope === 2 ? 's2' : r.scope === 3 ? 's3' : '';
+            h += '<tr><td>'+(r.row_index+1)+'</td><td><strong>'+(r.activity_type||'未分類')+'</strong></td><td><span class="status-badge '+sc+'">'+(r.scope?'Scope'+r.scope:'-')+'</span></td><td><strong>'+(r.amount_kg_co2e||0).toFixed(2)+'</strong></td><td>'+r.status+'</td></tr>';
+          });
+          const gt = summary.grand_total || rows.reduce((s,r) => s+(r.amount_kg_co2e||0), 0);
+          h += '<tr style="background:#f0f0f0"><td colspan="3"><strong>合計</strong></td><td><strong>'+gt.toFixed(2)+'</strong></td><td></td></tr></tbody></table></div>';
+          if (summary.scope1_total !== undefined) {
+            h += '<div class="result-box" style="margin-top:0.5rem"><strong>Scope 内訳:</strong> S1: '+fmt(summary.scope1_total)+' / S2: '+fmt(summary.scope2_total)+' / S3: '+fmt(summary.scope3_total)+' kg-CO2e | 分類済: '+summary.calculated_row_count+' / 未分類: '+summary.unclassified_count+'</div>';
+          }
+          document.getElementById('breakdownList').innerHTML = h;
+          document.getElementById('breakdownCard').scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
+      } catch(e) { console.warn('Results API error:', e); }
+      // Fallback to client-side data
       const calc = currentCalcs.find(c => c.id === calcId);
       if (!calc || !calc.breakdown) { document.getElementById('breakdownList').innerHTML = '<div class="loading">内訳データがありません</div>'; return; }
-      currentBreakdown = calc.breakdown;
       document.getElementById('breakdownCount').innerHTML = '合計 ' + calc.breakdown.length + ' 行';
-      let h = '<div class="table-wrap"><table><thead><tr><th>行</th><th>日付</th><th>科目</th><th>金額 (円)</th><th>摘要</th><th>排出係数</th><th>Scope</th><th>排出量 (kg-CO2e)</th></tr></thead><tbody>';
-      calc.breakdown.forEach(b => { 
-        const scopeClass = b.scope === 1 ? 's1' : b.scope === 2 ? 's2' : b.scope === 3 ? 's3' : '';
-        const scopeLabel = b.scope > 0 ? 'Scope'+b.scope : '-';
-        h += '<tr><td>'+b.row+'</td><td>'+b.date+'</td><td><strong>'+b.subject+'</strong></td><td>'+fmt(b.amount)+'</td><td style="font-size:0.7rem;color:#666">'+b.summary+'</td><td style="font-size:0.7rem">'+b.factorName+'</td><td><span class="status-badge '+scopeClass+'">'+scopeLabel+'</span></td><td><strong>'+b.emission.toFixed(2)+'</strong></td></tr>'; 
-      });
-      h += '<tr style="background:#f0f0f0"><td colspan="7"><strong>合計</strong></td><td><strong>'+calc.grandTotalKg.toFixed(2)+'</strong></td></tr>';
+      let h = '<div class="table-wrap"><table><thead><tr><th>行</th><th>科目</th><th>Scope</th><th>排出量</th></tr></thead><tbody>';
+      calc.breakdown.forEach(b => { h += '<tr><td>'+b.row+'</td><td>'+b.subject+'</td><td>Scope'+(b.scope||'-')+'</td><td>'+b.emission.toFixed(2)+'</td></tr>'; });
       h += '</tbody></table></div>'; document.getElementById('breakdownList').innerHTML = h;
       document.getElementById('breakdownCard').scrollIntoView({ behavior: 'smooth' });
     }
 
     async function loadFactors() {
-      // クライアントサイド：ハードコードされた排出係数を表示
+      try {
+        const data = await fetchJSON('/api/v1/factors');
+        if (data && data.versions) {
+          currentFactors = [];
+          Object.entries(data.versions).forEach(([ver, entries]) => {
+            entries.forEach(f => {
+              currentFactors.push({ id: f.activity_type+'_'+ver, name: f.activity_type, description: ver+' 排出係数', scope: f.scope, rate: f.factor_value, unit: f.unit, category: ver, country: 'JP', source: '環境省 '+ver, factor: f.factor_value });
+            });
+          });
+          document.getElementById('factorCount').innerHTML = '合計 ' + currentFactors.length + ' 件';
+          filterFactors();
+          return;
+        }
+      } catch(e) { console.warn('Factors API unavailable:', e); }
+      // Fallback to client-side
       currentFactors = Object.entries(EMISSION_FACTORS).map(([key, f]) => ({
-        id: key,
-        name: key,
-        description: f.desc,
-        scope: f.scope,
-        rate: f.rate,
-        unit: f.unit,
-        category: f.category,
+        id: key, name: key, description: f.desc, scope: f.scope, rate: f.rate, unit: f.unit, category: f.category, country: 'JP', source: '環境省', factor: f.rate,
       }));
       document.getElementById('factorCount').innerHTML = '合計 ' + currentFactors.length + ' 件';
       filterFactors();
@@ -402,10 +494,13 @@
     function showAddFactor() { document.getElementById('addFactorCard').classList.remove('hidden'); }
     function hideAddFactor() { document.getElementById('addFactorCard').classList.add('hidden'); }
 
-    async function saveFactor() {
+    function saveFactor() {
       const factor = { name: document.getElementById('efName').value, source: document.getElementById('efSource').value, factor: parseFloat(document.getElementById('efFactor').value), unit: document.getElementById('efUnit').value, scope: parseInt(document.getElementById('efScope').value), country: document.getElementById('efCountry').value, category: document.getElementById('efCategory').value, description: document.getElementById('efDesc').value };
-      try { await fetch('/api/v1/factors', { method: 'POST', body: JSON.stringify(factor), headers: { 'Content-Type': 'application/json' } }); hideAddFactor(); loadFactors(); }
-      catch(e) { alert('エラー：' + e.message); }
+      if (!factor.name || !factor.factor || !factor.unit) { alert('名称・排出係数・単位は必須です'); return; }
+      const key = factor.name + '_custom';
+      currentFactors.push({ id: key, name: factor.name, description: factor.description, scope: factor.scope, rate: factor.factor, unit: factor.unit, category: factor.category, country: factor.country, source: factor.source, factor: factor.factor });
+      document.getElementById('factorCount').innerHTML = '合計 ' + currentFactors.length + ' 件';
+      hideAddFactor(); filterFactors(); alert('排出係数を追加しました');
     }
 
     // デモ機能：サンプルデータで CO2 算出をシミュレート（164 行・2024/2025 年度）
@@ -608,7 +703,7 @@
 
     async function runDemo() {
       const statsDiv = document.getElementById('summaryStats');
-      statsDiv.innerHTML = '<div class="loading">🚀 デモ実行中：サンプルデータ（32 行）を読込中...</div>';
+      statsDiv.innerHTML = '<div class="loading">🚀 デモ実行中：サンプルデータ（164 行）を読込中...</div>';
       
       await new Promise(r => setTimeout(r, 500)); // UX: 少し待たせる
       
@@ -678,8 +773,6 @@
 
       // 内訳詳細を自動表示
       showBreakdown(demoCalc.id);
-
-      statsDiv.innerHTML = '<div class="success">✅ デモ完了！164 行の会計データ（2024-2025 年度）から CO2 排出量を算出しました</div>';
     }
 
     async function fetchJSON(url) { try { return await (await fetch(url)).json(); } catch(e) { return null; } }
@@ -728,7 +821,7 @@
     function showAddProduct() { document.getElementById('addProductCard').classList.remove('hidden'); }
     function hideAddProduct() { document.getElementById('addProductCard').classList.add('hidden'); }
 
-    async function saveProduct() {
+    function saveProduct() {
       const product = {
         product_code: document.getElementById('pmCode').value,
         product_name: document.getElementById('pmName').value,
@@ -741,10 +834,8 @@
         description: document.getElementById('pmDesc').value,
       };
       if (!product.product_code || !product.product_name || !product.category || !product.emission_factor || !product.emission_unit) { alert('必須項目を入力してください'); return; }
-      try { 
-        await fetch('/api/v1/products', { method: 'POST', body: JSON.stringify(product), headers: { 'Content-Type': 'application/json' } }); 
-        hideAddProduct(); loadProducts(); 
-      } catch(e) { alert('エラー：' + e.message); }
+      PRODUCT_MASTER[product.product_code] = { name: product.product_name, category: product.category, scope: product.scope, factor: product.emission_factor, unit: product.emission_unit };
+      hideAddProduct(); loadProducts(); alert('商品を追加しました');
     }
 
     // POS 計算機能
@@ -914,16 +1005,12 @@
     }
 
     function openPdf(jobId) {
-      window.open('/api/v1/pdf/jobs/'+jobId+'/pdf', '_blank');
+      alert('PDF ダウンロードはサーバー版のみ対応しています。CSV エクスポートをご利用ください。');
     }
 
     let currentPosJobId = null;
     function openPosPdf() {
-      if (currentPosJobId) {
-        window.open('/api/v1/pdf/jobs/'+currentPosJobId+'/pdf', '_blank');
-      } else {
-        alert('まず CO2 を算出してください');
-      }
+      alert('PDF ダウンロードはサーバー版のみ対応しています。CSV エクスポートをご利用ください。');
     }
 
     // 認証機能
