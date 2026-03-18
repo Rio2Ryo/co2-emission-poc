@@ -87,6 +87,34 @@
     .filter-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
     .filter-bar select, .filter-bar input { padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.8rem; }
     .data-count { font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.5rem; }
+
+    /* ===== Hamburger Menu (Mobile) ===== */
+    .hamburger-btn { display: none; background: none; border: none; cursor: pointer; padding: 0.5rem; border-radius: 6px; min-height: 44px; min-width: 44px; align-items: center; justify-content: center; font-size: 1.4rem; color: var(--text); transition: background 0.15s; flex-shrink: 0; }
+    .hamburger-btn:hover { background: #f1f5f9; }
+    .hamburger-btn:active { background: #e2e8f0; }
+    @media (max-width: 767px) {
+      body { padding-top: 64px; }
+      .header-top { padding: 0.5rem 1rem; }
+      .header-brand h1 .full-title { display: none; }
+      .header-brand h1 .short-title { display: inline; }
+      .header-brand h1 { font-size: 1rem; }
+      .subtitle { display: none; }
+      .hamburger-btn { display: flex; }
+      .login-btn { padding: 0.5rem 0.7rem; font-size: 0.75rem; min-height: 40px; }
+      .user-btn { padding: 0.5rem 0.7rem; font-size: 0.75rem; min-height: 40px; }
+      .user-email { max-width: 80px; }
+      .nav { display: none; flex-direction: column; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-top: 1px solid var(--border); border-bottom: 2px solid var(--primary); box-shadow: 0 6px 20px rgba(0,0,0,0.15); padding: 0.5rem; gap: 0.25rem; z-index: 200; }
+      .nav.open { display: flex; }
+      .nav button { min-height: 48px; font-size: 0.9rem; padding: 0.75rem 1rem; border-radius: 8px; border-bottom: none !important; width: 100%; justify-content: flex-start; text-align: left; }
+      .nav button.active { background: #e8f1ff; color: var(--primary); font-weight: 700; border-left: 3px solid var(--primary); }
+      .nav button:hover { background: #f0f7ff; }
+    }
+    @media (min-width: 768px) {
+      .header-brand h1 .short-title { display: none; }
+      .header-brand h1 .full-title { display: inline; }
+    }
+    .nav-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 150; }
+    .nav-overlay.open { display: block; }
   </style>
 </head>
 <body>
@@ -94,15 +122,17 @@
   <header class="app-header">
     <div class="header-top">
       <div class="header-brand">
-        <h1>🌍 CO2 Emission Calculator</h1>
+        <h1>🌍 <span class="full-title">CO2 Emission Calculator</span><span class="short-title">CO2 算出</span></h1>
         <p class="subtitle">MVP v1.1 &mdash; 会計データから CO2 排出量を算出</p>
       </div>
       <div class="header-actions">
         <button onclick="showLogin()" id="loginBtn" class="login-btn">🔐 ログイン</button>
         <button onclick="logout()" id="logoutBtn" class="user-btn" style="display:none">👤 <span class="user-email" id="userEmail"></span></button>
+        <button class="hamburger-btn" onclick="toggleMenu()" id="hamburgerBtn" aria-label="メニューを開く">☰</button>
       </div>
     </div>
-    <nav class="nav">
+    <div class="nav-overlay" id="navOverlay" onclick="closeMenu()"></div>
+    <nav class="nav" id="mainNav">
       <button class="active" onclick="showTab('dashboard')">📊 ダッシュボード</button>
       <button onclick="showTab('upload')">📁 データアップロード</button>
       <button onclick="showTab('pos')">🛒 POS計算</button>
@@ -299,6 +329,25 @@
       return false;
     };
 
+    function toggleMenu() {
+      const nav = document.getElementById('mainNav');
+      const overlay = document.getElementById('navOverlay');
+      const btn = document.getElementById('hamburgerBtn');
+      const isOpen = nav.classList.toggle('open');
+      overlay.classList.toggle('open', isOpen);
+      btn.textContent = isOpen ? '✕' : '☰';
+      btn.setAttribute('aria-label', isOpen ? 'メニューを閉じる' : 'メニューを開く');
+    }
+    function closeMenu() {
+      const nav = document.getElementById('mainNav');
+      const overlay = document.getElementById('navOverlay');
+      const btn = document.getElementById('hamburgerBtn');
+      nav.classList.remove('open');
+      overlay.classList.remove('open');
+      btn.textContent = '☰';
+      btn.setAttribute('aria-label', 'メニューを開く');
+    }
+
     function showTab(tab) {
       try {
         ['dashboard','upload','pos','products','factors'].forEach(t => { document.getElementById('tab-'+t).classList.add('hidden'); });
@@ -309,6 +358,7 @@
         if (tab==='pos') clearPosRows();
         if (tab==='products') loadProducts();
         if (tab==='factors') loadFactors();
+        closeMenu();
       } catch(e) { console.error('showTab error:', e); }
     }
 
