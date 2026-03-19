@@ -190,8 +190,23 @@
     </div>
 
     <div class="card" id="breakdownCard">
-      <h2>📄 排出量内訳詳細</h2>
+      <div class="actions"><h2>📄 排出量内訳詳細</h2></div>
       <div class="data-count" id="breakdownCount"></div>
+      
+      <!-- Filter Bar -->
+      <div class="filter-bar" style="margin-bottom:1rem">
+        <input type="text" id="breakdownSearch" placeholder="🔍 科目で検索..." oninput="filterBreakdown()" style="flex:1;min-width:150px">
+        <select id="breakdownScope" onchange="filterBreakdown()"><option value="">全 Scope</option><option value="1">Scope 1</option><option value="2">Scope 2</option><option value="3">Scope 3</option></select>
+        <select id="breakdownStatus" onchange="filterBreakdown()"><option value="">全状態</option><option value="calculated">分類済</option><option value="unclassified">未分類</option></select>
+        <select id="breakdownSort" onchange="filterBreakdown()">
+          <option value="row">行順</option>
+          <option value="emission_desc">排出量順 (大→小)</option>
+          <option value="emission_asc">排出量順 (小→大)</option>
+          <option value="subject">科目名 (あいう)</option>
+          <option value="date">日付順</option>
+        </select>
+      </div>
+      
       <div class="table-wrap"><div id="breakdownList" class="loading">算出履歴から選択してください</div></div>
     </div>
   </div>
@@ -335,6 +350,8 @@
     
     let currentUpload = null, currentMapping = {}, currentCalcs = [], currentFactors = [], currentBreakdown = null, filteredFactors = [];
     let currentProducts = [], filteredProducts = [];
+    let currentBreakdownData = [], filteredBreakdownData = [];
+    let currentSortField = 'row', currentSortDir = 'asc';
 
     // エラーハンドリング
     window.onerror = function(msg, url, line) {
@@ -564,11 +581,79 @@
       // Fallback to client-side data
       const calc = currentCalcs.find(c => c.id === calcId);
       if (!calc || !calc.breakdown) { document.getElementById('breakdownList').innerHTML = '<div class="loading">内訳データがありません</div>'; return; }
-      document.getElementById('breakdownCount').innerHTML = '合計 ' + calc.breakdown.length + ' 行';
-      let h = '<div class="table-wrap"><table><thead><tr><th>行</th><th>科目</th><th>Scope</th><th>排出量</th></tr></thead><tbody>';
-      calc.breakdown.forEach(b => { h += '<tr><td>'+b.row+'</td><td>'+b.subject+'</td><td>Scope'+(b.scope||'-')+'</td><td>'+b.emission.toFixed(2)+'</td></tr>'; });
-      h += '</tbody></table></div>'; document.getElementById('breakdownList').innerHTML = h;
+      
+      // Store breakdown data for filtering
+      currentBreakdownData = calc.breakdown.map((b, i) => ({
+        ...b,
+        index: i
+      }));
+      
+      // Reset filters
+      document.getElementById('breakdownSearch').value = '';
+      document.getElementById('breakdownScope').value = '';
+      document.getElementById('breakdownStatus').value = '';
+      document.getElementById('breakdownSort').value = 'row';
+      
+      filterBreakdown();
       document.getElementById('breakdownCard').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Breakdown filtering and sorting
+    function filterBreakdown() {
+      const search = document.getElementById('breakdownSearch').value.toLowerCase();
+      const scope = document.getElementById('breakdownScope').value;
+      const status = document.getElementById('breakdownStatus').value;
+      const sort = document.getElementById('breakdownSort').value;
+      
+      // Filter
+      filteredBreakdownData = currentBreakdownData.filter(b => {
+        if (search && !b.subject.toLowerCase().includes(search) && !(b.summary||'').toLowerCase().includes(search)) return false;
+        if (scope && b.scope != scope) return false;
+        if (status && b.status !== status) return false;
+        return true;
+      });
+      
+      // Sort
+      filteredBreakdownData.sort((a, b) => {
+        let cmp = 0;
+        if (sort === 'row') cmp = a.row - b.row;
+        else if (sort === 'emission_desc') cmp = b.emission - a.emission;
+        else if (sort === 'emission_asc') cmp = a.emission - b.emission;
+        else if (sort === 'subject') cmp = a.subject.localeCompare(b.subject, 'ja');
+        else if (sort === 'date') cmp = (a.date||'').localeCompare(b.date||'');
+        return cmp;
+      });
+      
+      renderBreakdown();
+    }
+
+    function renderBreakdown() {
+      document.getElementById('breakdownCount').innerHTML = '表示：' + filteredBreakdownData.length + ' / 合計：' + currentBreakdownData.length + ' 行';
+      
+      if (filteredBreakdownData.length === 0) {
+        document.getElementById('breakdownList').innerHTML = '<div class="loading">該当するデータはありません</div>';
+        return;
+      }
+      
+      let h = '<div class="table-wrap"><table><thead><tr><th>行</th><th>日付</th><th>科目</th><th>摘要</th><th>金額</th><th>Scope</th><th>排出量 (kg-CO2e)</th><th>状態</th></tr></thead><tbody>';
+      filteredBreakdownData.forEach(b => {
+        const sc = b.scope === 1 ? 's1' : b.scope === 2 ? 's2' : b.scope === 3 ? 's3' : '';
+        const status = b.status === 'calculated' ? '<span class="status-badge status-done">分類済</span>' : '<span class="status-badge" style="background:#dc2626;color:#fff">未分類</span>';
+        h += '<tr><td>'+b.row+'</td><td>'+(b.date||'-')+'</td><td><strong>'+(b.subject||'-')+'</strong></td><td>'+(b.summary||'-')+'</td><td>'+(b.amount||0).toLocaleString()+'</td><td><span class="status-badge '+sc+'">'+(b.scope?'Scope'+b.scope:'-')+'</span></td><td><strong>'+b.emission.toFixed(2)+'</strong></td><td>'+status+'</td></tr>';
+      });
+      h += '</tbody></table></div>';
+      
+      // Summary
+      const total = filteredBreakdownData.reduce((s,b) => s+b.emission, 0);
+      const s1 = filteredBreakdownData.filter(b=>b.scope===1).reduce((s,b)=>s+b.emission,0);
+      const s2 = filteredBreakdownData.filter(b=>b.scope===2).reduce((s,b)=>s+b.emission,0);
+      const s3 = filteredBreakdownData.filter(b=>b.scope===3).reduce((s,b)=>s+b.emission,0);
+      const calc = filteredBreakdownData.filter(b=>b.status==='calculated').length;
+      const uncalc = filteredBreakdownData.filter(b=>b.status==='unclassified').length;
+      
+      h += '<div class="result-box" style="margin-top:0.5rem"><strong>Scope 内訳:</strong> S1: '+fmt(s1)+' / S2: '+fmt(s2)+' / S3: '+fmt(s3)+' kg-CO2e | 分類済：'+calc+' / 未分類：'+uncalc+' | 総排出量：<strong>'+fmt(total)+'</strong> kg-CO2e</div>';
+      
+      document.getElementById('breakdownList').innerHTML = h;
     }
 
     async function loadFactors() {
