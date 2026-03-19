@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>CO2 Emission Calculator - MVP</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root { --primary: #0070f3; --primary-dark: #005dd4; --success: #16a34a; --error: #dc2626; --warning: #f59e0b; --scope1: #ef4444; --scope2: #f59e0b; --scope3: #3b82f6; --bg: #f0f2f5; --card: #fff; --text: #222; --text-light: #666; --border: #e5e7eb; }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -163,11 +165,22 @@
     </div>
 
     <div class="card">
-      <div class="actions"><h2>📊 排出量ダッシュボード</h2><div style="display:flex;gap:0.5rem"><button class="btn btn-sm" onclick="runDemo()">🚀 デモ実行</button><button class="btn btn-secondary btn-sm" onclick="exportCsv()">📥 CSV エクスポート</button></div></div>
+      <div class="actions"><h2>📊 排出量ダッシュボード</h2><div style="display:flex;gap:0.5rem"><button class="btn btn-sm" onclick="runDemo()">🚀 デモ実行</button><button class="btn btn-secondary btn-sm" onclick="exportCsv()">📥 CSV 出力</button></div></div>
       <p style="color:var(--text-light);font-size:0.75rem;margin-bottom:0.75rem;">サンプルデータ（会計 164 行・2024-2025 年度）を自動読込して CO2 排出量を算出します</p>
       <div id="summaryStats" class="stats"><div class="loading">データ読込中...</div></div>
       <div class="scope-bar"><div class="scope1" style="width:40%"></div><div class="scope2" style="width:35%"></div><div class="scope3" style="width:25%"></div></div>
       <div class="scope-legend"><span><div class="scope-dot scope1"></div>Scope 1</span><span><div class="scope-dot scope2"></div>Scope 2</span><span><div class="scope-dot scope3"></div>Scope 3</span></div>
+    </div>
+
+    <!-- Graph Cards -->
+    <div class="card" id="scopePieCard" style="display:none">
+      <h2>🥧 Scope 別排出量比率</h2>
+      <div style="height:280px;position:relative"><canvas id="scopePieChart"></canvas></div>
+    </div>
+
+    <div class="card" id="categoryBarCard" style="display:none">
+      <h2>📊 カテゴリ別排出量</h2>
+      <div style="height:280px;position:relative"><canvas id="categoryBarChart"></canvas></div>
     </div>
 
     <div class="card">
@@ -420,11 +433,38 @@
     }
 
     function exportCsv() {
-      const headers = ['ID','日時','ソース','総排出量','Scope1','Scope2','Scope3','状態'];
-      let csv = headers.join(',') + '\n';
-      currentCalcs.forEach(c => { csv += [c.id, c.createdAt||c.created_at, c.sourceType, c.grandTotalKg||c.grand_total_kg, c.scope1, c.scope2, c.scope3, c.status].join(',') + '\n'; });
-      const blob = new Blob(['\ufeff'+csv], { type: 'text/csv;charset=utf-8;' }), url = URL.createObjectURL(blob), link = document.createElement('a');
-      link.href = url; link.download = 'co2_emissions_' + new Date().toISOString().slice(0,10) + '.csv'; link.click();
+      if (!currentCalcs || currentCalcs.length === 0) {
+        alert('算出履歴がありません。先にデモ実行またはアップロードしてください。');
+        return;
+      }
+      const latest = currentCalcs[0];
+      if (!latest.breakdown) {
+        alert('詳細データがありません。デモ実行またはアップロードをやり直してください。');
+        return;
+      }
+      let csv = '日付，科目，金額 (円),排出係数，Scope，排出量 (kg-CO2e),摘要，部署\n';
+      latest.breakdown.forEach(row => {
+        const date = row.date || '';
+        const subject = row.subject || '';
+        const amount = row.amount || 0;
+        const factor = row.factor || 0;
+        const scope = row.scope || '';
+        const emission = row.emission || 0;
+        const summary = row.summary || '';
+        const dept = row.department || '';
+        csv += date + ',' + subject + ',' + amount + ',' + factor + ',S' + scope + ',' + emission.toFixed(4) + ',' + summary + ',' + dept + '\n';
+      });
+      csv += '\n,,,総排出量，,' + latest.grandTotalKg.toFixed(4) + ',,\n';
+      csv += ',,,Scope 1，,' + latest.scope1.toFixed(4) + ',,\n';
+      csv += ',,,Scope 2，,' + latest.scope2.toFixed(4) + ',,\n';
+      csv += ',,,Scope 3，,' + latest.scope3.toFixed(4) + ',,\n';
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'co2_emissions_' + new Date().toISOString().slice(0,10) + '.csv';
+      link.click();
+      URL.revokeObjectURL(url);
     }
 
     async function loadDashboard() {
@@ -851,6 +891,15 @@
 
       // 内訳詳細を自動表示
       showBreakdown(demoCalc.id);
+
+      // Render charts
+      const categoryData = {};
+      breakdown.forEach(r => {
+        const cat = r.summary || '未分類';
+        if (!categoryData[cat]) categoryData[cat] = 0;
+        categoryData[cat] += r.emission;
+      });
+      renderCharts({ scope1, scope2, scope3 }, categoryData);
     }
 
     async function fetchJSON(url) { try { return await (await fetch(url)).json(); } catch(e) { return null; } }
@@ -1163,6 +1212,127 @@
       localStorage.removeItem('auth_user');
       checkAuth();
       alert('ログアウトしました');
+    }
+
+    // Graph charts
+    let scopePieChart = null;
+    let categoryBarChart = null;
+
+    function renderCharts(scopeData, categoryData) {
+      // Scope Pie Chart
+      const scopeCtx = document.getElementById('scopePieChart').getContext('2d');
+      if (scopePieChart) scopePieChart.destroy();
+      scopePieChart = new Chart(scopeCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Scope 1', 'Scope 2', 'Scope 3'],
+          datasets: [{
+            data: [scopeData.scope1, scopeData.scope2, scopeData.scope3],
+            backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 12 } } },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
+                  const pct = ((ctx.raw / total) * 100).toFixed(1);
+                  return ctx.label + ': ' + ctx.raw.toFixed(2) + ' kg-CO2e (' + pct + '%)';
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // Category Bar Chart
+      const catCtx = document.getElementById('categoryBarChart').getContext('2d');
+      if (categoryBarChart) categoryBarChart.destroy();
+      
+      const categories = Object.keys(categoryData).slice(0, 10);
+      const values = categories.map(c => categoryData[c].total || categoryData[c]);
+      
+      categoryBarChart = new Chart(catCtx, {
+        type: 'bar',
+        data: {
+          labels: categories,
+          datasets: [{
+            label: '排出量 (kg-CO2e)',
+            data: values,
+            backgroundColor: '#0070f3',
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  return ctx.raw.toFixed(2) + ' kg-CO2e';
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { font: { size: 11 } }
+            },
+            x: {
+              ticks: { font: { size: 11 } }
+            }
+          }
+        }
+      });
+
+      // Show graph cards
+      document.getElementById('scopePieCard').style.display = 'block';
+      document.getElementById('categoryBarCard').style.display = 'block';
+    }
+
+    // CSV Export function
+    function exportCsv() {
+      if (!currentCalculations || currentCalculations.length === 0) {
+        alert('算出履歴がありません。先にデモ実行またはアップロードしてください。');
+        return;
+      }
+
+      // Get the latest calculation
+      const latest = currentCalculations[0];
+      let csv = '日付，科目，金額 (円),排出係数，Scope，排出量 (kg-CO2e)\n';
+      
+      latest.rows.forEach(row => {
+        const date = row.date || latest.calculated_at || '';
+        const account = row.account_item || row.product_name || '';
+        const amount = row.amount || 0;
+        const factor = row.emission_factor || 0;
+        const scope = row.scope || '';
+        const emission = row.emission || 0;
+        csv += date + ',' + account + ',' + amount + ',' + factor + ',S' + scope + ',' + emission.toFixed(4) + '\n';
+      });
+
+      // Add summary at the end
+      csv += '\n,,,総排出量，,' + latest.scope_summary.grand_total.toFixed(4) + '\n';
+      csv += ',,,Scope 1，,' + latest.scope_summary.scope1.toFixed(4) + '\n';
+      csv += ',,,Scope 2，,' + latest.scope_summary.scope2.toFixed(4) + '\n';
+      csv += ',,,Scope 3，,' + latest.scope_summary.scope3.toFixed(4) + '\n';
+
+      // Download
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'co2_emissions_' + new Date().toISOString().slice(0,10) + '.csv';
+      link.click();
+      URL.revokeObjectURL(url);
     }
 
     // 初期化時に認証状態をチェック
