@@ -4,25 +4,16 @@ import pytest
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
+from tests.conftest import make_test_engine, make_test_session_factory, make_db_override
 from app.main import app
 from app.db.base import Base
 from app.db.session import get_db
 
-_engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-_Session = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
-
-
-def _override():
-    db = _Session()
-    try:
-        yield db
-    finally:
-        db.close()
+_engine = make_test_engine()
+_Session = make_test_session_factory(_engine)
+_override = make_db_override(_Session)
 
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "..", "fixtures")

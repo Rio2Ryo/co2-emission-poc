@@ -2,30 +2,20 @@
 import os
 import uuid
 
-TEST_DB = f"/tmp/co2poc_test_del_{uuid.uuid4().hex[:8]}.db"
-os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB}"
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
+from tests.conftest import make_test_engine, make_test_session_factory, make_db_override
 from app.main import app
 from app.db.base import Base
 from app.db.session import get_db
 
-_engine = create_engine(f"sqlite:///{TEST_DB}", connect_args={"check_same_thread": False})
-_Session = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
+_engine = make_test_engine()
+_Session = make_test_session_factory(_engine)
 Base.metadata.create_all(bind=_engine)
 
-
-def _override():
-    db = _Session()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
+_override = make_db_override(_Session)
 app.dependency_overrides[get_db] = _override
 client = TestClient(app)
 
