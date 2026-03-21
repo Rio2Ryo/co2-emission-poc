@@ -2,7 +2,7 @@
 import csv
 import io
 import uuid
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
@@ -43,6 +43,30 @@ class MappingResponse(BaseModel):
     mapping_id: str
     upload_id: str
     mappings: Dict[str, str]
+
+
+def _error_detail(message: str, row: Optional[int] = None, column: Optional[str] = None) -> Dict[str, Any]:
+    """Unified error detail structure."""
+    detail: Dict[str, Any] = {"message": message}
+    if row is not None:
+        detail["row"] = row
+    if column is not None:
+        detail["column"] = column
+    return detail
+
+
+def _validate_csv_rows(rows: List[Dict], headers: List[str]) -> List[Dict[str, Any]]:
+    """Validate CSV rows and return list of error details (row number + column name)."""
+    errors: List[Dict[str, Any]] = []
+    for i, row in enumerate(rows, start=2):  # row 1 = header, data starts at row 2
+        for col in headers:
+            if col not in row:
+                errors.append(_error_detail(
+                    f"Missing value for column '{col}'",
+                    row=i,
+                    column=col,
+                ))
+    return errors
 
 
 @router.get("")
@@ -87,18 +111,38 @@ async def upload_csv(
         try:
             text = content.decode("shift_jis")
         except UnicodeDecodeError:
-            raise HTTPException(status_code=422, detail="Unsupported encoding (use UTF-8 or Shift-JIS)")
+            raise HTTPException(
+                status_code=422,
+                detail=_error_detail("Unsupported file encoding. Please use UTF-8 or Shift-JIS."),
+            )
 
     reader = csv.DictReader(io.StringIO(text))
     try:
         rows = list(reader)
+    except csv.Error as e:
+        raise HTTPException(
+            status_code=422,
+            detail=_error_detail(f"Invalid CSV format: {e}"),
+        )
     except Exception as e:
-        raise HTTPException(status_code=422, detail=f"CSV parse error: {e}")
+        raise HTTPException(
+            status_code=422,
+            detail=_error_detail(f"CSV parse error: {e}"),
+        )
 
     if not rows:
-        raise HTTPException(status_code=422, detail="CSV has no data rows")
+        raise HTTPException(
+            status_code=422,
+            detail=_error_detail("CSV file contains no data rows (only a header or is empty)."),
+        )
 
     headers = list(rows[0].keys()) if rows else []
+
+    if not headers or all(h.strip() == "" for h in headers):
+        raise HTTPException(
+            status_code=422,
+            detail=_error_detail("CSV has no valid header columns."),
+        )
 
     # 会計CSVの必須列チェック
     if data_type == "accounting":
@@ -106,7 +150,10 @@ async def upload_csv(
         if missing:
             raise HTTPException(
                 status_code=422,
-                detail=[{"msg": f"Missing required column: {col}"} for col in missing],
+                detail=[
+                    _error_detail(f"Missing required column: '{col}'", column=col)
+                    for col in sorted(missing)
+                ],
             )
 
     # DB保存

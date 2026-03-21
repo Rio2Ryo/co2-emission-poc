@@ -1,10 +1,21 @@
 """Integration tests for GET /api/v1/factors"""
 import os
-os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/co2poc_test_factors.db")
+
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
 from fastapi.testclient import TestClient
-from app.main import app
 
+from tests.conftest import make_test_engine, make_test_session_factory, make_db_override
+from app.main import app
+from app.db.base import Base
+from app.db.session import get_db
+
+_engine = make_test_engine()
+_Session = make_test_session_factory(_engine)
+Base.metadata.create_all(bind=_engine)
+
+_override = make_db_override(_Session)
+app.dependency_overrides[get_db] = _override
 client = TestClient(app)
 
 
