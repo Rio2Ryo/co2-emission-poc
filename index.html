@@ -30,6 +30,15 @@
   .download-link:hover { text-decoration: underline; }
   .hidden { display: none; }
   .api-note { font-size: 0.75rem; color: #999; margin-top: 0.25rem; font-family: monospace; }
+  .mapping-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; margin-bottom: 1rem; }
+  .mapping-table th { text-align: left; padding: 0.4rem 0.6rem; background: #f0f0f0; border-bottom: 2px solid #ddd; font-weight: 600; }
+  .mapping-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; vertical-align: middle; }
+  .mapping-table select { margin-bottom: 0; width: auto; min-width: 160px; }
+  .required-badge { font-size: 0.7rem; color: #dc2626; background: #fee2e2; border-radius: 3px; padding: 0.1rem 0.35rem; margin-left: 0.3rem; font-weight: 600; }
+  .preview-table-wrap { overflow-x: auto; margin-bottom: 1rem; }
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .preview-table th { background: #f0f0f0; padding: 0.3rem 0.5rem; border: 1px solid #ddd; white-space: nowrap; }
+  .preview-table td { padding: 0.3rem 0.5rem; border: 1px solid #eee; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .stat-card { background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 6px; padding: 0.6rem 1rem; min-width: 120px; text-align: center; }
   .stat-card .val { font-size: 1.3rem; font-weight: 700; color: #0070f3; }
   .stat-card .lbl { font-size: 0.75rem; color: #888; margin-top: 0.15rem; }
@@ -76,9 +85,30 @@
   <div class="api-note">POST /api/v1/uploads</div>
 </div>
 
-<!-- Step 2: Calculate -->
+<!-- Step 1.5: Column Mapping -->
+<div class="card hidden" id="card-mapping">
+  <h2><span class="step-num" id="num-mapping">2</span> Map Columns</h2>
+  <p style="font-size:0.85rem;color:#666;margin-bottom:1rem">Match each column in your CSV to the corresponding system field. Required fields must be mapped.</p>
+  <div id="mappingPreviewWrap" class="hidden">
+    <p style="font-size:0.8rem;font-weight:600;color:#555;margin-bottom:0.4rem">CSV Preview (first 5 rows):</p>
+    <div class="preview-table-wrap">
+      <div id="mappingPreview"></div>
+    </div>
+  </div>
+  <table class="mapping-table">
+    <thead>
+      <tr><th>CSV Column</th><th>System Field</th></tr>
+    </thead>
+    <tbody id="mappingRows"></tbody>
+  </table>
+  <button id="btnMapping" onclick="doSaveMapping()">Save Mapping &amp; Continue</button>
+  <div class="status" id="statusMapping"></div>
+  <div class="api-note">POST /api/v1/uploads/{upload_id}/mappings</div>
+</div>
+
+<!-- Step 3: Calculate -->
 <div class="card hidden" id="card-calc">
-  <h2><span class="step-num" id="num-calc">2</span> Run Calculation</h2>
+  <h2><span class="step-num" id="num-calc">3</span> Run Calculation</h2>
   <label for="factorVersion">Emission factor version:</label>
   <select id="factorVersion">
     <option value="2023">2023</option>
@@ -90,16 +120,16 @@
   <div class="api-note">POST /api/v1/calculations → poll /api/v1/calculations/{job_id}/status</div>
 </div>
 
-<!-- Step 3: Results -->
+<!-- Step 4: Results -->
 <div class="card hidden" id="card-results">
-  <h2><span class="step-num" id="num-results">3</span> Results</h2>
+  <h2><span class="step-num" id="num-results">4</span> Results</h2>
   <div id="resultsContent"></div>
   <div class="api-note">GET /api/v1/calculations/{job_id}/results</div>
 </div>
 
-<!-- Step 4: Compare -->
+<!-- Step 5: Compare -->
 <div class="card hidden" id="card-compare">
-  <h2><span class="step-num" id="num-compare">4</span> Compare with another version</h2>
+  <h2><span class="step-num" id="num-compare">5</span> Compare with another version</h2>
   <label for="compareVersion">Compare against emission factor version:</label>
   <select id="compareVersion">
     <option value="2021">2021</option>
@@ -131,6 +161,17 @@ const API = '';  // same origin; change to http://localhost:8000 if serving sepa
 let uploadId = null;
 let jobId = null;
 
+// Standard system fields for column mapping
+const SYSTEM_FIELDS = [
+  { value: '', label: '-- skip this column --' },
+  { value: 'account_name', label: 'account_name (勘定科目)', required: true },
+  { value: 'amount', label: 'amount (金額)', required: true },
+  { value: 'quantity', label: 'quantity (数量)', required: false },
+  { value: 'unit_price', label: 'unit_price (単価)', required: false },
+  { value: 'date', label: 'date (日付)', required: false },
+  { value: 'description', label: 'description (摘要)', required: false },
+];
+
 function setStatus(id, msg, type) {
   const el = document.getElementById(id);
   el.textContent = msg;
@@ -156,18 +197,131 @@ async function doUpload() {
     const data = await res.json();
     uploadId = data.upload_id;
 
-    // Auto-save mapping if available
-    await fetch(API + `/api/v1/uploads/${uploadId}/mappings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mappings: {} })  // empty = use auto-detected mapping
-    });
-
     setStatus('statusUpload', `Uploaded ${data.row_count} rows (id: ${uploadId.slice(0,8)}…)`, 'ok');
     document.getElementById('num-upload').classList.add('done');
-    document.getElementById('card-calc').classList.remove('hidden');
+    showMappingUI(data.headers, data.preview);
   } catch (e) {
     setStatus('statusUpload', 'Upload failed: ' + e.message, 'error');
+    btn.disabled = false;
+  }
+}
+
+function showMappingUI(headers, preview) {
+  // Render CSV preview table
+  if (preview && preview.length > 0) {
+    let html = '<table class="preview-table"><thead><tr>';
+    headers.forEach(h => { html += `<th>${escHtml(h)}</th>`; });
+    html += '</tr></thead><tbody>';
+    preview.forEach(row => {
+      html += '<tr>';
+      headers.forEach(h => { html += `<td>${escHtml(String(row[h] ?? ''))}</td>`; });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('mappingPreview').innerHTML = html;
+    document.getElementById('mappingPreviewWrap').classList.remove('hidden');
+  }
+
+  // Render mapping rows
+  const tbody = document.getElementById('mappingRows');
+  tbody.innerHTML = '';
+  headers.forEach(col => {
+    const tr = document.createElement('tr');
+
+    // CSV column name cell
+    const tdCol = document.createElement('td');
+    tdCol.style.fontFamily = 'monospace';
+    tdCol.textContent = col;
+    tr.appendChild(tdCol);
+
+    // System field dropdown cell
+    const tdSel = document.createElement('td');
+    const sel = document.createElement('select');
+    sel.id = 'map_' + col;
+
+    SYSTEM_FIELDS.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.value;
+      opt.textContent = f.label;
+      sel.appendChild(opt);
+    });
+
+    // Auto-detect: try to match CSV column name to a system field
+    const lower = col.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const autoMatch = SYSTEM_FIELDS.find(f => f.value && (
+      f.value === lower ||
+      col === '勘定科目名' && f.value === 'account_name' ||
+      col === '金額' && f.value === 'amount' ||
+      col === '数量' && f.value === 'quantity' ||
+      col === '単価' && f.value === 'unit_price' ||
+      col === '日付' && f.value === 'date' ||
+      col === '摘要' && f.value === 'description'
+    ));
+    if (autoMatch) sel.value = autoMatch.value;
+
+    tdSel.appendChild(sel);
+
+    // Required badge if auto-matched to a required field
+    if (autoMatch && autoMatch.required) {
+      const badge = document.createElement('span');
+      badge.className = 'required-badge';
+      badge.textContent = 'required';
+      tdSel.appendChild(badge);
+    }
+
+    tr.appendChild(tdSel);
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('card-mapping').classList.remove('hidden');
+  window.scrollTo({ top: document.getElementById('card-mapping').offsetTop - 20, behavior: 'smooth' });
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function doSaveMapping() {
+  if (!uploadId) return;
+
+  // Collect mappings from dropdowns
+  const rows = document.getElementById('mappingRows').querySelectorAll('tr');
+  const mappings = {};
+  rows.forEach(tr => {
+    const colName = tr.cells[0].textContent;
+    const sel = tr.cells[1].querySelector('select');
+    if (sel && sel.value) {
+      mappings[colName] = sel.value;
+    }
+  });
+
+  // Validate: required system fields must be mapped
+  const requiredFields = SYSTEM_FIELDS.filter(f => f.required).map(f => f.value);
+  const mappedValues = Object.values(mappings);
+  const missingRequired = requiredFields.filter(f => !mappedValues.includes(f));
+  if (missingRequired.length > 0) {
+    setStatus('statusMapping', `Required fields not mapped: ${missingRequired.join(', ')}`, 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btnMapping');
+  btn.disabled = true;
+  setStatus('statusMapping', 'Saving mapping…');
+
+  try {
+    const res = await fetch(API + `/api/v1/uploads/${uploadId}/mappings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mappings })
+    });
+    if (!res.ok) { throw new Error(`HTTP ${res.status}: ${await res.text()}`); }
+
+    setStatus('statusMapping', 'Mapping saved.', 'ok');
+    document.getElementById('num-mapping').classList.add('done');
+    document.getElementById('card-calc').classList.remove('hidden');
+    window.scrollTo({ top: document.getElementById('card-calc').offsetTop - 20, behavior: 'smooth' });
+  } catch (e) {
+    setStatus('statusMapping', 'Failed to save mapping: ' + e.message, 'error');
     btn.disabled = false;
   }
 }
