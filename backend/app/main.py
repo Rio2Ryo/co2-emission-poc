@@ -36,6 +36,8 @@ def health():
 
 
 # Serve frontend static files at / (must be AFTER all API routes)
-_frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
-if _frontend_dir.is_dir():
-    app.mount("/", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
+# Skip static file mounting on Vercel (Vercel serves static files directly)
+if not os.environ.get("VERCEL"):
+    _frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
+    if _frontend_dir.is_dir():
+        app.mount("/", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
