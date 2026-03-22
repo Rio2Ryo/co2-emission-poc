@@ -90,6 +90,65 @@
     .filter-bar select, .filter-bar input { padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.8rem; }
     .data-count { font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.5rem; }
 
+    /* ===== Sidebar (PC only) ===== */
+    .sidebar {
+      display: none;
+    }
+    @media (min-width: 768px) {
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 64px;
+        left: 0;
+        width: 200px;
+        height: calc(100vh - 64px);
+        background: #fff;
+        border-right: 1px solid var(--border);
+        padding: 1rem 0;
+        z-index: 90;
+        overflow-y: auto;
+      }
+      .sidebar button {
+        background: transparent;
+        border: none;
+        border-left: 3px solid transparent;
+        padding: 0.75rem 1rem;
+        font-size: 0.85rem;
+        cursor: pointer;
+        text-align: left;
+        width: 100%;
+        color: var(--text-light);
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: color 0.15s, background 0.15s, border-color 0.15s;
+      }
+      .sidebar button:hover {
+        color: var(--primary);
+        background: #f0f7ff;
+      }
+      .sidebar button.active {
+        color: var(--primary);
+        border-left-color: var(--primary);
+        background: #e8f1ff;
+        font-weight: 700;
+      }
+      /* PC時はヘッダーのnav（横タブ）を非表示 */
+      .app-header .nav {
+        display: none;
+      }
+      /* main-contentを右にずらす */
+      .main-content {
+        margin-left: 200px;
+        padding: 1.5rem 2rem;
+      }
+      body {
+        padding-top: 64px;
+      }
+    }
+
     /* ===== Hamburger Menu (Mobile) ===== */
     .hamburger-btn { display: none; background: none; border: none; cursor: pointer; padding: 0.5rem; border-radius: 6px; min-height: 44px; min-width: 44px; align-items: center; justify-content: center; font-size: 1.4rem; color: var(--text); transition: background 0.15s; flex-shrink: 0; }
     .hamburger-btn:hover { background: #f1f5f9; }
@@ -142,6 +201,15 @@
       <button onclick="showTab('factors')">⚡ 排出係数</button>
     </nav>
   </header>
+
+  <!-- ===== Sidebar (PC only) ===== -->
+  <aside class="sidebar" id="sidebarNav">
+    <button class="active" onclick="showTab('dashboard')">📊 ダッシュボード</button>
+    <button onclick="showTab('upload')">📁 データアップロード</button>
+    <button onclick="showTab('pos')">🛒 POS計算</button>
+    <button onclick="showTab('products')">📦 商品マスタ</button>
+    <button onclick="showTab('factors')">⚡ 排出係数</button>
+  </aside>
 
   <main class="main-content">
 
@@ -384,6 +452,7 @@
         document.getElementById('tab-'+tab).classList.remove('hidden');
         const tabs = ['dashboard','upload','pos','products','factors'];
         document.querySelectorAll('.nav button').forEach((b,i) => { b.classList.toggle('active', tabs[i]===tab); });
+        document.querySelectorAll('#sidebarNav button').forEach((b,i) => { b.classList.toggle('active', tabs[i]===tab); });
         if (tab==='dashboard') { loadDashboard(); loadCalculations(); }
         if (tab==='pos') clearPosRows();
         if (tab==='products') loadProducts();
