@@ -1,10 +1,32 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: co2poc
+      POSTGRES_PASSWORD: co2poc
+      POSTGRES_DB: co2poc
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U co2poc -d co2poc"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://co2poc:co2poc@db:5432/co2poc
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
       - ./data:/data
     healthcheck:
@@ -22,3 +44,6 @@ services:
       - ./frontend:/srv/frontend:ro
     command: python3 -m http.server 8090 --directory /srv/frontend
     restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -2,34 +2,21 @@
 import os
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-TEST_DB_PATH = "/tmp/co2poc_test.db"
-os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH}"
+from tests.conftest import make_test_engine, make_test_session_factory, make_db_override
+
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
 from app.main import app
 from app.db.base import Base
 from app.db.session import get_db
 
-# テスト用DBセットアップ
-test_engine = create_engine(
-    f"sqlite:///{TEST_DB_PATH}",
-    connect_args={"check_same_thread": False},
-)
-TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+_engine = make_test_engine()
+_Session = make_test_session_factory(_engine)
+Base.metadata.create_all(bind=_engine)
 
-
-def override_get_db():
-    db = TestSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = override_get_db
-Base.metadata.create_all(bind=test_engine)
+_override = make_db_override(_Session)
+app.dependency_overrides[get_db] = _override
 
 client = TestClient(app)
 

@@ -2,34 +2,20 @@
 import os
 import pytest
 
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
+from tests.conftest import make_test_engine, make_test_session_factory, make_db_override
 from app.main import app
 from app.db.base import Base
 from app.db.session import get_db
 
-_engine = create_engine(
-    "sqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-_Session = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
+_engine = make_test_engine()
+_Session = make_test_session_factory(_engine)
 Base.metadata.create_all(bind=_engine)
 
-
-def _override_get_db():
-    db = _Session()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
+_override_get_db = make_db_override(_Session)
 app.dependency_overrides[get_db] = _override_get_db
 client = TestClient(app)
 
