@@ -111,8 +111,8 @@ async def upload_csv(
         raise HTTPException(status_code=422, detail="File is empty")
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(status_code=413, detail="File too large (max 10MB)")
-    if not (file.filename or "").endswith(".csv"):
-        raise HTTPException(status_code=422, detail="Only .csv files are supported")
+    if not (file.filename or "").lower().endswith((".csv", ".txt")):
+        raise HTTPException(status_code=422, detail="Only .csv or .txt files are supported")
 
     # CSV解析
     try:
@@ -201,7 +201,7 @@ async def upload_batch(
     results = []
     for file in files:
         content = await file.read()
-        if len(content) == 0 or not (file.filename or "").endswith(".csv"):
+        if len(content) == 0 or not (file.filename or "").lower().endswith((".csv", ".txt")):
             continue
 
         try:

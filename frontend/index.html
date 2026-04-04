@@ -285,7 +285,7 @@
       <div class="step"><span class="step-num">1</span><h2>📁 CSV アップロード</h2></div>
       <p style="color:var(--text-light);font-size:0.75rem;margin-bottom:1rem;">サンプルデータ：<a href="data/sample/accounting_200rows.csv" download style="color:var(--primary)">会計データ（164 行・複数年）</a> | <a href="data/sample/accounting_large.csv" download style="color:var(--primary)">会計データ（32 行）</a> | <a href="data/sample/pos_large.csv" download style="color:var(--primary)">POS データ（17 行）</a></p>
       <div class="upload-form">
-        <input type="file" id="csvFile" accept=".csv">
+        <input type="file" id="csvFile" accept=".csv,.txt">
         <select id="fileType"><option value="accounting">会計データ</option><option value="sales">売上データ</option><option value="pos">POS データ</option></select>
         <button class="btn" onclick="uploadCSV()">アップロード</button>
       </div>
