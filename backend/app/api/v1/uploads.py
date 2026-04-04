@@ -21,8 +21,42 @@ router = APIRouter()
 ALLOWED_CONTENT_TYPES = {"text/csv", "text/plain", "application/csv"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
-# 必須列チェック（会計CSV用）
+# 弥生会計CSVの列名定義（ヘッダーなし・25列固定）
+YAYOI_COLUMNS = [
+    "伝票番号", "行番号", "枝番", "日付",
+    "借方勘定科目", "借方補助科目", "借方部門", "借方税区分",
+    "借方金額", "借方消費税額",
+    "貸方勘定科目", "貸方補助科目", "貸方部門", "貸方税区分",
+    "貸方金額", "貸方消費税額",
+    "摘要", "予備1", "予備2", "按分",
+    "入力形式", "予備3", "会計期間", "予備4", "決算フラグ",
+]
+
+# 必須列チェック（会計CSV用・ヘッダーあり形式のみ）
 REQUIRED_HEADERS = {"勘定科目名", "金額"}
+
+
+def _parse_yayoi_csv(text: str):
+    """弥生会計エクスポートCSV（ヘッダーなし・25列）をパースして辞書リストに変換する。"""
+    reader = csv.reader(io.StringIO(text))
+    rows = []
+    for row in reader:
+        if not row:
+            continue
+        padded = row + [""] * (len(YAYOI_COLUMNS) - len(row))
+        rows.append(dict(zip(YAYOI_COLUMNS, padded[:len(YAYOI_COLUMNS)])))
+    return rows
+
+
+def _is_yayoi_format(first_row_values) -> bool:
+    """最初の行の最初の値が4桁の数字なら弥生会計形式と判定する。"""
+    if not first_row_values:
+        return False
+    try:
+        v = list(first_row_values)[0]
+        return len(str(int(v))) == 4
+    except (ValueError, TypeError):
+        return False
 
 
 class MappingRequest(BaseModel):
@@ -89,9 +123,18 @@ async def upload_csv(
         except UnicodeDecodeError:
             raise HTTPException(status_code=422, detail="Unsupported encoding (use UTF-8 or Shift-JIS)")
 
-    reader = csv.DictReader(io.StringIO(text))
+    # 弥生会計形式か通常のDictReader形式かを判定してパース
     try:
-        rows = list(reader)
+        first_reader = csv.reader(io.StringIO(text))
+        first_row = next(first_reader, [])
+        is_yayoi = _is_yayoi_format(first_row)
+        if is_yayoi:
+            # 弥生形式: ヘッダーなし・25列固定
+            rows = _parse_yayoi_csv(text)
+        else:
+            # 通常形式: ヘッダーあり
+            reader = csv.DictReader(io.StringIO(text))
+            rows = list(reader)
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"CSV parse error: {e}")
 
@@ -100,8 +143,8 @@ async def upload_csv(
 
     headers = list(rows[0].keys()) if rows else []
 
-    # 会計CSVの必須列チェック
-    if data_type == "accounting":
+    # 通常形式の会計CSVのみ必須列チェック（弥生形式はスキップ）
+    if data_type == "accounting" and not is_yayoi:
         missing = REQUIRED_HEADERS - set(headers)
         if missing:
             raise HTTPException(
@@ -169,9 +212,13 @@ async def upload_batch(
             except UnicodeDecodeError:
                 continue
 
-        reader = csv.DictReader(io.StringIO(text))
         try:
-            rows = list(reader)
+            first_reader = csv.reader(io.StringIO(text))
+            first_row = next(first_reader, [])
+            if _is_yayoi_format(first_row):
+                rows = _parse_yayoi_csv(text)
+            else:
+                rows = list(csv.DictReader(io.StringIO(text)))
         except Exception:
             continue
 
